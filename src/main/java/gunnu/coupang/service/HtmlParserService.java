@@ -104,19 +104,47 @@ public class HtmlParserService {
         }
 
         try {
+            log.info("HTML 파싱 시작. HTML 길이: {} bytes", htmlText.length());
             Document document = Jsoup.parse(htmlText);
 
             // ul#product-list 찾기
             Element productListUl = document.selectFirst("ul#" + PRODUCT_LIST_ID);
 
             if (productListUl == null) {
-                log.warn("ul#product-list 요소를 찾을 수 없습니다.");
-                throw new IllegalArgumentException("상품 리스트를 찾을 수 없습니다.");
+                log.error("ul#product-list 요소를 찾을 수 없습니다.");
+
+                // 디버깅: 다른 셀렉터로 시도
+                Elements allUls = document.select("ul");
+                log.info("전체 ul 태그 개수: {}", allUls.size());
+                for (Element ul : allUls) {
+                    log.info("ul 태그 발견 - id: '{}', class: '{}'", ul.id(), ul.className());
+                }
+
+                // id에 'product'가 포함된 요소 찾기
+                Elements productElements = document.select("[id*=product]");
+                log.info("id에 'product' 포함된 요소 개수: {}", productElements.size());
+                for (Element el : productElements) {
+                    log.info("product 관련 요소 - tag: {}, id: '{}', class: '{}'",
+                        el.tagName(), el.id(), el.className());
+                }
+
+                throw new IllegalArgumentException("상품 리스트를 찾을 수 없습니다. HTML 구조를 확인해주세요.");
             }
+
+            log.info("ul#product-list 찾음");
 
             // li 요소들 추출
             Elements productItems = productListUl.select("li.ProductUnit_productUnit__Qd6sv");
-            log.info("상품 개수: {}", productItems.size());
+            log.info("li.ProductUnit_productUnit__Qd6sv 상품 개수: {}", productItems.size());
+
+            // li 클래스가 없는 경우도 확인
+            if (productItems.isEmpty()) {
+                Elements allLis = productListUl.select("li");
+                log.info("전체 li 개수: {}", allLis.size());
+                for (Element li : allLis) {
+                    log.info("li 태그 - class: '{}'", li.className());
+                }
+            }
 
             List<ProductInfo> allProducts = new ArrayList<>();
             List<ProductInfo> rankedProducts = new ArrayList<>();

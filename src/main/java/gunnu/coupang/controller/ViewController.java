@@ -13,13 +13,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Controller
@@ -83,60 +83,94 @@ public class ViewController {
     }
 
     /**
-     * HTML 파싱 결과 페이지 (텍스트 또는 파일 업로드)
+     * HTML 파싱 결과 페이지 (여러 페이지 텍스트 입력)
      */
-    @PostMapping("/parse")
+    @PostMapping(value = "/parse", consumes = "application/json")
     public String parseHtml(
-            @RequestParam(value = "htmlText", required = false) String htmlText,
-            @RequestParam(value = "htmlFile", required = false) MultipartFile htmlFile,
+            @RequestBody List<String> htmlPages,
             Model model) {
         try {
-            String htmlContent = null;
+            List<String> htmlContents = new ArrayList<>();
 
-            // 1. 파일이 업로드된 경우
-            if (htmlFile != null && !htmlFile.isEmpty()) {
-                log.info("파일 업로드로 HTML 파싱 요청 받음. 파일명: {}, 크기: {} bytes",
-                        htmlFile.getOriginalFilename(), htmlFile.getSize());
-                htmlContent = new String(htmlFile.getBytes(), StandardCharsets.UTF_8);
+            // 텍스트 입력 처리
+            if (htmlPages != null && !htmlPages.isEmpty()) {
+                log.info("텍스트 입력 요청 - 페이지 개수: {}", htmlPages.size());
+                for (int i = 0; i < htmlPages.size(); i++) {
+                    String htmlPage = htmlPages.get(i);
+                    if (htmlPage != null && !htmlPage.trim().isEmpty()) {
+                        log.info("페이지 {} 추가 - 크기: {} bytes", i + 1, htmlPage.length());
+                        htmlContents.add(htmlPage);
+                    } else {
+                        log.debug("페이지 {} 스킵 (빈 내용)", i + 1);
+                    }
+                }
+            } else {
+                log.warn("htmlPages가 null 또는 empty");
             }
-            // 2. 텍스트가 입력된 경우
-            else if (htmlText != null && !htmlText.trim().isEmpty()) {
-                log.info("텍스트 입력으로 HTML 파싱 요청 받음. 크기: {} bytes", htmlText.length());
-                htmlContent = htmlText;
-            }
-            // 3. 둘 다 없는 경우
-            else {
+
+            // 입력이 없는 경우
+            if (htmlContents.isEmpty()) {
+                log.error("파싱할 HTML 컨텐츠가 없음");
                 model.addAttribute("success", false);
-                model.addAttribute("message", "HTML 텍스트를 입력하거나 파일을 업로드해주세요.");
+                model.addAttribute("message", "HTML 텍스트를 입력해주세요.");
                 return "result";
             }
 
-            ProductListResponse response = htmlParserService.extractProductList(htmlContent);
+            log.info("총 {}개 페이지의 HTML을 파싱합니다.", htmlContents.size());
 
-            // 상품 데이터를 데이터베이스에 저장
-            if (response.isSuccess() && response.getAllProducts() != null) {
-                productDataService.saveProductData(response.getAllProducts());
+            // 모든 페이지의 상품을 합침
+            List<ProductInfo> allProducts = new ArrayList<>();
+            int totalRankedCount = 0;
+            int totalAdCount = 0;
+            int totalNormalCount = 0;
+
+            for (int i = 0; i < htmlContents.size(); i++) {
+                log.info("페이지 {} 파싱 중...", i + 1);
+                ProductListResponse pageResponse = htmlParserService.extractProductList(htmlContents.get(i));
+
+                if (pageResponse.isSuccess() && pageResponse.getAllProducts() != null) {
+                    allProducts.addAll(pageResponse.getAllProducts());
+                    totalRankedCount += pageResponse.getRankedCount();
+                    totalAdCount += pageResponse.getAdCount();
+                    totalNormalCount += pageResponse.getNormalCount();
+                }
+            }
+
+            // 합쳐진 전체 상품 데이터를 데이터베이스에 저장 (순위는 전체 기준으로 재계산)
+            if (!allProducts.isEmpty()) {
+                productDataService.saveProductData(allProducts);
             }
 
             // 상품명 기준으로 정렬: 티피링크 -> ipTIME -> 나머지
-            List<ProductInfo> sortedProducts = sortProductsByBrand(response.getAllProducts());
+            List<ProductInfo> sortedProducts = sortProductsByBrand(allProducts);
 
             // 브랜드별 분리
-            List<ProductInfo> tpLinkProducts = filterByBrand(response.getAllProducts(), "tplink");
-            List<ProductInfo> ipTimeProducts = filterByBrand(response.getAllProducts(), "iptime");
+            List<ProductInfo> tpLinkProducts = filterByBrand(allProducts, "tplink");
+            List<ProductInfo> ipTimeProducts = filterByBrand(allProducts, "iptime");
 
-            model.addAttribute("success", response.isSuccess());
+            // 타입별 분리
+            List<ProductInfo> rankedProducts = allProducts.stream()
+                    .filter(p -> p.getRanking() != null)
+                    .collect(Collectors.toList());
+            List<ProductInfo> adProducts = allProducts.stream()
+                    .filter(ProductInfo::isAd)
+                    .collect(Collectors.toList());
+            List<ProductInfo> normalProducts = allProducts.stream()
+                    .filter(p -> p.getRanking() == null && !p.isAd())
+                    .collect(Collectors.toList());
+
+            model.addAttribute("success", true);
             model.addAttribute("allProducts", sortedProducts);
             model.addAttribute("tpLinkProducts", tpLinkProducts);
             model.addAttribute("ipTimeProducts", ipTimeProducts);
-            model.addAttribute("rankedProducts", response.getRankedProducts());
-            model.addAttribute("adProducts", response.getAdProducts());
-            model.addAttribute("normalProducts", response.getNormalProducts());
-            model.addAttribute("totalCount", response.getTotalCount());
-            model.addAttribute("rankedCount", response.getRankedCount());
-            model.addAttribute("adCount", response.getAdCount());
-            model.addAttribute("normalCount", response.getNormalCount());
-            model.addAttribute("message", response.getMessage());
+            model.addAttribute("rankedProducts", rankedProducts);
+            model.addAttribute("adProducts", adProducts);
+            model.addAttribute("normalProducts", normalProducts);
+            model.addAttribute("totalCount", allProducts.size());
+            model.addAttribute("rankedCount", totalRankedCount);
+            model.addAttribute("adCount", totalAdCount);
+            model.addAttribute("normalCount", totalNormalCount);
+            model.addAttribute("message", htmlContents.size() + "개 페이지에서 총 " + allProducts.size() + "개의 상품을 추출했습니다.");
 
             return "result";
         } catch (Exception e) {
