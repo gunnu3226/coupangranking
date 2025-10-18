@@ -367,6 +367,7 @@
             <button class="tab" onclick="showTab('ranked')">랭킹 상품</button>
             <button class="tab" onclick="showTab('ad')">광고 상품</button>
             <button class="tab" onclick="showTab('normal')">일반 상품</button>
+            <button class="tab" onclick="showTab('table-all')">📊 전체 테이블</button>
             <button class="tab" onclick="showTab('table')">📊 랭킹 테이블</button>
         </div>
 
@@ -500,6 +501,65 @@
             </div>
             <div class="empty-state" th:if="${normalProducts == null or normalProducts.isEmpty()}">
                 <p>일반 상품이 없습니다.</p>
+            </div>
+        </div>
+
+        <!-- 전체 테이블 -->
+        <div id="table-all" class="tab-content">
+            <div class="table-container" th:if="${allProducts != null and !allProducts.isEmpty()}">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>순위</th>
+                        <th>상품 ID</th>
+                        <th>상품명</th>
+                        <th>타입</th>
+                        <th>원가</th>
+                        <th>할인율</th>
+                        <th>현재가</th>
+                        <th>리뷰 수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${allProducts}">
+                        <td th:text="${product.ranking != null ? product.ranking : '-'}">-</td>
+                        <td>
+                            <div class="table-id" th:text="${product.productId}">12345678</div>
+                        </td>
+                        <td>
+                            <div class="table-product-name" th:text="${product.productName}" th:title="${product.productName}">
+                                상품명
+                            </div>
+                        </td>
+                        <td>
+                            <span th:if="${product.ranking != null}" style="color: #667eea; font-weight: 600;">랭킹</span>
+                            <span th:if="${product.ranking == null and product.ad}" style="color: #ff6b6b; font-weight: 600;">광고</span>
+                            <span th:if="${product.ranking == null and !product.ad}" style="color: #999;">일반</span>
+                        </td>
+                        <td>
+                            <span class="table-original-price" th:if="${product.originalPrice != null}"
+                                  th:text="${product.originalPrice}">-</span>
+                            <span th:unless="${product.originalPrice != null}">-</span>
+                        </td>
+                        <td>
+                            <span class="table-discount" th:if="${product.discountRate != null}"
+                                  th:text="${product.discountRate}">-</span>
+                            <span th:unless="${product.discountRate != null}">-</span>
+                        </td>
+                        <td>
+                            <span class="table-price" th:text="${product.currentPrice}">가격</span>
+                        </td>
+                        <td>
+                            <span class="table-review" th:if="${product.reviewCount != null}"
+                                  th:text="${product.reviewCount}">-</span>
+                            <span th:unless="${product.reviewCount != null}">-</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="empty-state" th:if="${allProducts == null or allProducts.isEmpty()}">
+                <p>상품이 없습니다.</p>
             </div>
         </div>
 
