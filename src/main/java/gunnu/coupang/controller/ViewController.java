@@ -2,7 +2,11 @@ package gunnu.coupang.controller;
 
 import gunnu.coupang.dto.ProductInfo;
 import gunnu.coupang.dto.ProductListResponse;
+import gunnu.coupang.dto.SavedProductData;
+import gunnu.coupang.entity.Category;
+import gunnu.coupang.entity.Company;
 import gunnu.coupang.service.HtmlParserService;
+import gunnu.coupang.service.ProductDataService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -13,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +27,7 @@ import java.util.List;
 public class ViewController {
 
     private final HtmlParserService htmlParserService;
+    private final ProductDataService productDataService;
 
     /**
      * 메인 페이지 (HTML 입력 폼)
@@ -29,6 +35,51 @@ public class ViewController {
     @GetMapping("/")
     public String index() {
         return "index";
+    }
+
+    /**
+     * 저장된 데이터 보기 페이지 (공유기 카테고리)
+     */
+    @GetMapping("/saved-data")
+    public String savedData(@RequestParam(value = "date", required = false) String dateStr, Model model) {
+        // 날짜 파싱 (null이면 오늘 날짜)
+        LocalDate selectedDate = null;
+        if (dateStr != null && !dateStr.isEmpty()) {
+            try {
+                selectedDate = LocalDate.parse(dateStr);
+            } catch (Exception e) {
+                log.error("잘못된 날짜 형식: {}", dateStr, e);
+            }
+        }
+
+        // 공유기 카테고리의 각 회사별 데이터 조회
+        List<SavedProductData> iptimeProducts = productDataService
+                .getProductDataByCategoryAndCompany(Category.ROUTER, Company.IPTIME, selectedDate);
+        List<SavedProductData> tplinkProducts = productDataService
+                .getProductDataByCategoryAndCompany(Category.ROUTER, Company.TPLINK, selectedDate);
+        List<SavedProductData> netisProducts = productDataService
+                .getProductDataByCategoryAndCompany(Category.ROUTER, Company.NETIS, selectedDate);
+        List<SavedProductData> mercusysProducts = productDataService
+                .getProductDataByCategoryAndCompany(Category.ROUTER, Company.MERCUSYS, selectedDate);
+        List<SavedProductData> asusProducts = productDataService
+                .getProductDataByCategoryAndCompany(Category.ROUTER, Company.ASUS, selectedDate);
+
+        // 저장된 날짜 목록 조회
+        List<LocalDate> availableDates = productDataService.getAvailableDates();
+
+        model.addAttribute("iptimeProducts", iptimeProducts);
+        model.addAttribute("tplinkProducts", tplinkProducts);
+        model.addAttribute("netisProducts", netisProducts);
+        model.addAttribute("mercusysProducts", mercusysProducts);
+        model.addAttribute("asusProducts", asusProducts);
+        model.addAttribute("availableDates", availableDates);
+        model.addAttribute("selectedDate", selectedDate != null ? selectedDate : LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+
+        int totalCount = iptimeProducts.size() + tplinkProducts.size() + netisProducts.size()
+                + mercusysProducts.size() + asusProducts.size();
+        model.addAttribute("totalCount", totalCount);
+
+        return "saved-data";
     }
 
     /**
@@ -61,6 +112,11 @@ public class ViewController {
             }
 
             ProductListResponse response = htmlParserService.extractProductList(htmlContent);
+
+            // 상품 데이터를 데이터베이스에 저장
+            if (response.isSuccess() && response.getAllProducts() != null) {
+                productDataService.saveProductData(response.getAllProducts());
+            }
 
             // 상품명 기준으로 정렬: 티피링크 -> ipTIME -> 나머지
             List<ProductInfo> sortedProducts = sortProductsByBrand(response.getAllProducts());

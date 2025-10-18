@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>저장된 데이터</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            margin: 0 0 10px 0;
+            color: #667eea;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 10px 15px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .company-section {
+            margin-bottom: 40px;
+        }
+
+        .company-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .company-header h3 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        .copy-button {
+            padding: 8px 16px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .copy-button:hover {
+            background: #f0f0f0;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #ddd;
+            font-size: 12px;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 12px;
+            color: #000;
+        }
+
+        th:nth-child(1) { width: 55%; text-align: left; }
+        th:nth-child(2) { width: 10%; text-align: center; }
+        th:nth-child(3) { width: 20%; text-align: right; }
+        th:nth-child(4) { width: 15%; text-align: right; }
+
+        tbody tr {
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        td:nth-child(1) { width: 55%; }
+        td:nth-child(2) { width: 10%; text-align: center; }
+        td:nth-child(3) { width: 20%; text-align: right; }
+        td:nth-child(4) { width: 15%; text-align: right; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .search-box {
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .hidden-row {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="back-button">← 돌아가기</a>
+
+    <h1>📊 저장된 데이터</h1>
+
+    <div class="info-box">
+        <h3>저장된 상품 데이터</h3>
+        <p style="margin: 5px 0; color: #666;">총 <strong th:text="${totalCount}">0</strong>개의 상품</p>
+        <p style="margin: 5px 0; color: #666;">📋 각 회사별 표를 복사할 수 있습니다</p>
+    </div>
+
+    <!-- 날짜 필터 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <label for="dateFilter" style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">
+            📅 날짜 선택:
+        </label>
+        <select id="dateFilter" onchange="changeDate()" style="padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 1rem; width: 250px; cursor: pointer;">
+            <option th:each="date : ${availableDates}"
+                    th:value="${date}"
+                    th:text="${date}"
+                    th:selected="${date.equals(selectedDate)}">
+                날짜
+            </option>
+        </select>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="showTab('router')">공유기</button>
+        <button class="tab" onclick="showTab('camera')">카메라 (준비중)</button>
+    </div>
+
+    <!-- 공유기 탭 -->
+    <div id="router" class="tab-content active">
+        <!-- IPTIME -->
+        <div class="company-section" th:if="${iptimeProducts != null and !iptimeProducts.isEmpty()}">
+            <div class="company-header">
+                <h3>ipTIME (<span id="count-iptime" th:text="${iptimeProducts.size()}">0</span>개)</h3>
+                <button class="copy-button" onclick="copyTableToClipboard('table-iptime')">📋 복사</button>
+            </div>
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 상품명 검색..." onkeyup="searchTable('table-iptime', 'count-iptime', this.value)">
+            </div>
+            <div class="table-container">
+                <table id="table-iptime">
+                    <thead>
+                    <tr>
+                        <th>상품명</th>
+                        <th>노출순위</th>
+                        <th>판가</th>
+                        <th>댓글수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${iptimeProducts}">
+                        <td th:text="${product.productName}">상품명</td>
+                        <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.currentPrice}">가격</td>
+                        <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TPLINK -->
+        <div class="company-section" th:if="${tplinkProducts != null and !tplinkProducts.isEmpty()}">
+            <div class="company-header">
+                <h3>TP-Link (<span id="count-tplink" th:text="${tplinkProducts.size()}">0</span>개)</h3>
+                <button class="copy-button" onclick="copyTableToClipboard('table-tplink')">📋 복사</button>
+            </div>
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 상품명 검색..." onkeyup="searchTable('table-tplink', 'count-tplink', this.value)">
+            </div>
+            <div class="table-container">
+                <table id="table-tplink">
+                    <thead>
+                    <tr>
+                        <th>상품명</th>
+                        <th>노출순위</th>
+                        <th>판가</th>
+                        <th>댓글수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${tplinkProducts}">
+                        <td th:text="${product.productName}">상품명</td>
+                        <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.currentPrice}">가격</td>
+                        <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- NETIS -->
+        <div class="company-section" th:if="${netisProducts != null and !netisProducts.isEmpty()}">
+            <div class="company-header">
+                <h3>NETIS (<span id="count-netis" th:text="${netisProducts.size()}">0</span>개)</h3>
+                <button class="copy-button" onclick="copyTableToClipboard('table-netis')">📋 복사</button>
+            </div>
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 상품명 검색..." onkeyup="searchTable('table-netis', 'count-netis', this.value)">
+            </div>
+            <div class="table-container">
+                <table id="table-netis">
+                    <thead>
+                    <tr>
+                        <th>상품명</th>
+                        <th>노출순위</th>
+                        <th>판가</th>
+                        <th>댓글수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${netisProducts}">
+                        <td th:text="${product.productName}">상품명</td>
+                        <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.currentPrice}">가격</td>
+                        <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MERCUSYS -->
+        <div class="company-section" th:if="${mercusysProducts != null and !mercusysProducts.isEmpty()}">
+            <div class="company-header">
+                <h3>MERCUSYS (<span id="count-mercusys" th:text="${mercusysProducts.size()}">0</span>개)</h3>
+                <button class="copy-button" onclick="copyTableToClipboard('table-mercusys')">📋 복사</button>
+            </div>
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 상품명 검색..." onkeyup="searchTable('table-mercusys', 'count-mercusys', this.value)">
+            </div>
+            <div class="table-container">
+                <table id="table-mercusys">
+                    <thead>
+                    <tr>
+                        <th>상품명</th>
+                        <th>노출순위</th>
+                        <th>판가</th>
+                        <th>댓글수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${mercusysProducts}">
+                        <td th:text="${product.productName}">상품명</td>
+                        <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.currentPrice}">가격</td>
+                        <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ASUS -->
+        <div class="company-section" th:if="${asusProducts != null and !asusProducts.isEmpty()}">
+            <div class="company-header">
+                <h3>ASUS (<span id="count-asus" th:text="${asusProducts.size()}">0</span>개)</h3>
+                <button class="copy-button" onclick="copyTableToClipboard('table-asus')">📋 복사</button>
+            </div>
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 상품명 검색..." onkeyup="searchTable('table-asus', 'count-asus', this.value)">
+            </div>
+            <div class="table-container">
+                <table id="table-asus">
+                    <thead>
+                    <tr>
+                        <th>상품명</th>
+                        <th>노출순위</th>
+                        <th>판가</th>
+                        <th>댓글수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${asusProducts}">
+                        <td th:text="${product.productName}">상품명</td>
+                        <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.currentPrice}">가격</td>
+                        <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="empty-state" th:if="${totalCount == 0}">
+            <p>저장된 공유기 데이터가 없습니다.</p>
+            <p style="margin-top: 10px;">먼저 HTML을 파싱하여 데이터를 저장해주세요.</p>
+        </div>
+    </div>
+
+    <!-- 카메라 탭 (준비중) -->
+    <div id="camera" class="tab-content">
+        <div class="empty-state">
+            <p>카메라 카테고리는 준비중입니다.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showTab(tabName) {
+        // 모든 탭 비활성화
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+
+        // 선택한 탭 활성화
+        event.target.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+    }
+
+    function copyTableToClipboard(tableId) {
+        const table = document.getElementById(tableId);
+
+        if (!table) {
+            alert('테이블을 찾을 수 없습니다.');
+            return;
+        }
+
+        const range = document.createRange();
+        range.selectNode(table);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+
+        try {
+            document.execCommand('copy');
+            alert('표가 클립보드에 복사되었습니다!\n엑셀에 붙여넣기 하세요.');
+        } catch (err) {
+            alert('복사에 실패했습니다. 수동으로 표를 드래그하여 복사해주세요.');
+        }
+
+        window.getSelection().removeAllRanges();
+    }
+
+    function changeDate() {
+        const selectedDate = document.getElementById('dateFilter').value;
+        window.location.href = `/saved-data?date=${selectedDate}`;
+    }
+
+    function searchTable(tableId, countId, searchValue) {
+        // Remove whitespace and convert to lowercase for comparison
+        const filter = searchValue.replace(/\s/g, '').toLowerCase();
+        const table = document.getElementById(tableId);
+        const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+        let visibleCount = 0;
+
+        for (let row of rows) {
+            const productName = row.cells[0].textContent;
+            const normalizedName = productName.replace(/\s/g, '').toLowerCase();
+
+            if (normalizedName.includes(filter)) {
+                row.classList.remove('hidden-row');
+                visibleCount++;
+            } else {
+                row.classList.add('hidden-row');
+            }
+        }
+
+        document.getElementById(countId).textContent = visibleCount;
+    }
+</script>
+</body>
+</html>
