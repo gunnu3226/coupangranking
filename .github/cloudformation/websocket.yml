@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description:
+  'Websocket IaC'
+
+Parameters:
+  ProjectName:
+    Type: String
+  ENV:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+
+Conditions:
+  IsProd: !Equals [!Ref ENV, 'prod']
+
+Resources:
+  WebsocketAPI:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-${ENV}-websocket-api'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref ConnectIntegration]]
+  ConnectRouteResponse:
+    Type: AWS::ApiGatewayV2::RouteResponse
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      RouteId: !Ref ConnectRoute
+      RouteResponseKey: $default
+  ConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      IntegrationType: HTTP
+      IntegrationMethod: POST
+      IntegrationUri:
+        Fn::Join:
+          - ''
+          - - !ImportValue
+                'Fn::Sub': '${ProjectName}-${ENV}-ALBDNSName'
+            - '/v1/websocket_connection/connect/'
+      RequestTemplates:
+        "$default": !Sub
+          - |
+            {
+              "apiKey": "${ApiKey}",
+              "id": "$context.connectionId",
+              "queryParams": {
+                #foreach($param in $input.params().querystring.keySet())
+                  "$param": "$util.escapeJavaScript($input.params().querystring.get($param))"
+                  #if($foreach.hasNext),#end
+                #end
+              }
+            }
+          - ApiKey: {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-APIKey'}
+      TemplateSelectionExpression: \$default
+  ConnectIntegrationResponse:
+    Type: AWS::ApiGatewayV2::IntegrationResponse
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      IntegrationId: !Ref ConnectIntegration
+      IntegrationResponseKey: /201/
+      ResponseTemplates:
+        "$default": | 
+          {}
+      TemplateSelectionExpression: \$default
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref DisconnectIntegration]]
+  DisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      IntegrationType: HTTP
+      IntegrationMethod: POST
+      IntegrationUri:
+        Fn::Join:
+          - ''
+          - - !ImportValue
+                'Fn::Sub': '${ProjectName}-${ENV}-ALBDNSName'
+            - '/v1/websocket_connection/disconnect/'
+      RequestTemplates:
+        "$default": !Sub
+          - |
+            {
+              "apiKey": "${ApiKey}",
+              "id": "$context.connectionId",
+              "queryParams": {
+                #foreach($param in $input.params().querystring.keySet())
+                  "$param": "$util.escapeJavaScript($input.params().querystring.get($param))"
+                  #if($foreach.hasNext),#end
+                #end
+              }
+            }
+          - ApiKey: {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-APIKey'}
+      TemplateSelectionExpression: \$default
+
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - ConnectRoute
+      - DisconnectRoute
+    Properties:
+      ApiId: !Ref WebsocketAPI
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebsocketAPI
+      DeploymentId: !Ref Deployment
+      StageName: !Ref ENV
+
+  ApiCWLRoleArn:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt CloudWatchRole.Arn
+
+  CloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Action: 'sts:AssumeRole'
+          Effect: Allow
+          Principal:
+            Service: apigateway.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'

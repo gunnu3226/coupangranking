@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description:
+  'RDS IaC'
+
+Parameters:
+  ProjectName:
+    Type: String
+  ENV:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+
+Conditions:
+  IsDev: !Equals [!Ref ENV, 'dev']
+  IsProd: !Equals [!Ref ENV, 'prod']
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName}-${ENV}-db-sg'
+      VpcId: {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-VPC'}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
+
+  # DEV
+  RDSSecretDev:
+    Type: AWS::SecretsManager::Secret
+    Condition: IsDev
+    Properties:
+      Name: !Sub '${ProjectName}/${ENV}/db'
+      GenerateSecretString:
+        RequireEachIncludedType: True
+        SecretStringTemplate: !Sub '{"username": "${ProjectName}"}'
+        GenerateStringKey: 'password'
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\&;='
+  RDSSecretAttachmentDev:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Condition: IsDev
+    DependsOn: RDSDBInstanceDev
+    Properties:
+      SecretId: !Ref RDSSecretDev
+      TargetId: !Ref RDSDBInstanceDev
+      TargetType: AWS::RDS::DBInstance
+  RDSSubnetGroupDev:
+    Type: AWS::RDS::DBSubnetGroup
+    Condition: IsDev
+    Properties:
+      DBSubnetGroupName: !Sub '${ProjectName}-${ENV}-db-subnet-group'
+      DBSubnetGroupDescription: !Sub '${ProjectName}-${ENV}-db-subnet-group'
+      SubnetIds:
+        - { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet1' }
+        - { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet2' }
+  RDSDBInstanceDev:
+    Type: AWS::RDS::DBInstance
+    Condition: IsDev
+    DeletionPolicy: Snapshot
+    DependsOn: RDSSecretDev
+    Properties:
+      DBInstanceIdentifier: !Sub '${ProjectName}-${ENV}-db-instance'
+      AllocatedStorage: 20 # 기본 50
+      DBSubnetGroupName: !Ref RDSSubnetGroupDev
+      Engine: postgres
+      PubliclyAccessible: true
+      DBInstanceClass: db.t3.micro # 기본 db.t4g.small
+      EngineVersion: 16.4
+      DBParameterGroupName: default.postgres16
+      Port: 5432
+      DBName: !Ref ProjectName
+      MasterUsername: !Join [ '', [ '{{resolve:secretsmanager:', !Ref RDSSecretDev, ':SecretString:username}}' ] ]
+      MasterUserPassword: !Join [ '', [ '{{resolve:secretsmanager:', !Ref RDSSecretDev, ':SecretString:password}}' ] ]
+      VPCSecurityGroups: [ !GetAtt SecurityGroup.GroupId ]
+      EnableCloudwatchLogsExports:
+        - postgresql
+
+#  # PROD
+#  RDSSecret:
+#    Type: AWS::SecretsManager::Secret
+#    Condition: IsProd
+#    Properties:
+#      Name: !Sub '${ProjectName}/${ENV}/db'
+#      GenerateSecretString:
+#        RequireEachIncludedType: True
+#        SecretStringTemplate: !Sub '{"username": "${ProjectName}"}'
+#        GenerateStringKey: 'password'
+#        PasswordLength: 30
+#        ExcludeCharacters: '"@/\&;='
+#  RDSSecretAttachment:
+#    Type: AWS::SecretsManager::SecretTargetAttachment
+#    Condition: IsProd
+#    DependsOn: RDSCluster
+#    Properties:
+#      SecretId: !Ref RDSSecret
+#      TargetId: !Ref RDSCluster
+#      TargetType: AWS::RDS::DBCluster
+#  RDSSubnetGroup:
+#    Type: AWS::RDS::DBSubnetGroup
+#    Condition: IsProd
+#    Properties:
+#      DBSubnetGroupName: !Sub '${ProjectName}-${ENV}-db-subnet-group'
+#      DBSubnetGroupDescription: !Sub '${ProjectName}-${ENV}-db-subnet-group'
+#      SubnetIds:
+#        - {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet1'}
+#        - {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet2'}
+#  RDSCluster:
+#    Type: AWS::RDS::DBCluster
+#    Condition: IsProd
+#    DeletionPolicy: Snapshot
+#    DependsOn: RDSSecret
+#    Properties:
+#      DBSubnetGroupName: !Ref RDSSubnetGroup
+#      DBClusterIdentifier: !Sub '${ProjectName}-${ENV}-db-cluster'
+#      Engine: aurora-postgresql
+#      EngineVersion: 12.12
+#      DBClusterParameterGroupName: default.aurora-postgresql12
+#      Port: 5432
+#      DatabaseName: !Ref ProjectName
+#      MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref RDSSecret, ':SecretString:username}}' ]]
+#      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref RDSSecret, ':SecretString:password}}' ]]
+#      VpcSecurityGroupIds: [!GetAtt SecurityGroup.GroupId]
+#      EnableCloudwatchLogsExports:
+#        - postgresql
+#  RDSDBInstance:
+#    Type: AWS::RDS::DBInstance
+#    Condition: IsProd
+#    Properties:
+#      DBInstanceIdentifier: !Sub '${ProjectName}-${ENV}-db-instance'
+#      DBSubnetGroupName: !Ref RDSSubnetGroup
+#      Engine: aurora-postgresql
+#      DBClusterIdentifier: !Ref RDSCluster
+#      PubliclyAccessible: false
+#      DBInstanceClass: db.t4g.medium
+#  RDSAutoscalingRole:
+#    Type: AWS::IAM::Role
+#    Condition: IsProd
+#    Properties:
+#      AssumeRolePolicyDocument:
+#        Statement:
+#          - Effect: Allow
+#            Principal:
+#              Service: [ application-autoscaling.amazonaws.com ]
+#            Action: [ 'sts:AssumeRole' ]
+#      Path: /
+#      Policies:
+#        - PolicyName: rds-autoscaling
+#          PolicyDocument:
+#            Statement:
+#              - Effect: Allow
+#                Action:
+#                  - 'application-autoscaling:*'
+#                  - 'cloudwatch:DescribeAlarms'
+#                  - 'cloudwatch:DeleteAlarms'
+#                  - 'cloudwatch:PutMetricAlarm'
+#                  - 'rds:DescribeServices'
+#                  - 'rds:UpdateService'
+#                  - 'rds:AddTagsToResource'
+#                  - 'rds:CreateDBInstance'
+#                  - 'rds:DeleteDBInstance'
+#                  - 'rds:DescribeDBClusters'
+#                  - 'rds:DescribeDBInstances'
+#                  - 'rds:ModifyDBCluster'
+#                Resource: '*'
+#  RDSScalingTarget:
+#    Type: AWS::ApplicationAutoScaling::ScalableTarget
+#    Condition: IsProd
+#    Properties:
+#      MinCapacity: 1
+#      MaxCapacity: 15
+#      ResourceId: !Join [':', [cluster, !Ref RDSCluster]]
+#      RoleARN: !GetAtt RDSAutoscalingRole.Arn
+#      ScalableDimension: rds:cluster:ReadReplicaCount
+#      ServiceNamespace: rds
+#  RDSScalingPolicy:
+#    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+#    Condition: IsProd
+#    Properties:
+#      PolicyName: !Sub '${ProjectName}-${ENV}-db-asg-policy'
+#      ScalingTargetId: !Ref RDSScalingTarget
+#      PolicyType: TargetTrackingScaling
+#      ScalableDimension: rds:cluster:ReadReplicaCount
+#      TargetTrackingScalingPolicyConfiguration:
+#        PredefinedMetricSpecification:
+#          PredefinedMetricType: RDSReaderAverageCPUUtilization
+#        TargetValue: 80
+#        ScaleInCooldown: 60
+#        ScaleOutCooldown: 120

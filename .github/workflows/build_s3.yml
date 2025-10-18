@@ -1,0 +1,46 @@
+name: Build S3
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment
+        type: choice
+        required: true
+        options:
+          - prod
+          - dev
+
+jobs:
+  set_environment:
+    runs-on: ubuntu-latest
+    outputs:
+      project_name: ${{ steps.set_environment.outputs.project_name }}
+      project_env: ${{ steps.set_environment.outputs.project_env }}
+    steps:
+      - id: set_environment
+        name: Set Environment
+        run: |
+          echo "project_name=$(echo "${{ github.repository }}" | sed "s|${{ github.repository_owner }}\/||g" | sed "s|-spring||g")" >> $GITHUB_OUTPUT
+
+  build_s3:
+    runs-on: ubuntu-latest
+    needs: [ set_environment ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Build S3
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ needs.set_environment.outputs.project_name }}-${{ inputs.env }}-s3
+          template: .github/cloudformation/s3.yml
+          parameter-overrides: >-
+            ProjectName=${{ needs.set_environment.outputs.project_name }},
+            ENV=${{ inputs.env }}

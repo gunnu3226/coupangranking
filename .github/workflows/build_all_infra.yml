@@ -1,0 +1,216 @@
+name: Build All Infra
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment
+        type: choice
+        required: true
+        options:
+          - prod
+          - dev
+      websocket:
+        description: Websocket
+        type: boolean
+        default: false
+        required: false
+
+jobs:
+  set_environment:
+    runs-on: ubuntu-latest
+    outputs:
+      project_name: ${{ steps.set_environment.outputs.project_name }}
+      project_env: ${{ steps.set_environment.outputs.project_env }}
+    steps:
+      - id: set_environment
+        name: Set Environment
+        run: |
+          echo "project_name=$(echo "${{ github.repository }}" | sed "s|${{ github.repository_owner }}\/||g" | sed "s|-spring||g")" >> $GITHUB_OUTPUT
+
+  create_repository:
+    runs-on: ubuntu-latest
+    needs: [ set_environment ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Create Repository
+        continue-on-error: true
+        run: |
+          aws ecr create-repository --region ap-northeast-2 --repository-name ${{ needs.set_environment.outputs.project_name }}-backend
+
+  deploy_backend_image:
+    runs-on: ubuntu-latest
+    needs: [ set_environment, create_repository ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # JAVA setting for build
+      - name: Set Up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Spring .yml file copy
+      - name: Copy Spring .yml
+        env:
+          CREATE_SECRET: ${{secrets.APPLICATION_DEV_YML}}
+          CREATE_SECRET_DIR: src/main/resources
+          CREATE_SECRET_DIR_FILE_NAME: application-dev.yml
+        run: echo $CREATE_SECRET | base64 --decode > $CREATE_SECRET_DIR/$CREATE_SECRET_DIR_FILE_NAME
+
+
+    # application build
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build & Push Backend Image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: >-
+            ${{ steps.login-ecr.outputs.registry }}/${{ needs.set_environment.outputs.project_name }}-backend:${{ inputs.env }},
+            ${{ steps.login-ecr.outputs.registry }}/${{ needs.set_environment.outputs.project_name }}-backend:${{ github.sha }}
+
+  build_vpc:
+    runs-on: ubuntu-latest
+    needs: [ set_environment ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Build VPC
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ needs.set_environment.outputs.project_name }}-${{ inputs.env }}-vpc
+          template: .github/cloudformation/vpc.yml
+          parameter-overrides: >-
+            ProjectName=${{ needs.set_environment.outputs.project_name }},
+            ENV=${{ inputs.env }}
+
+  build_ecs:
+    runs-on: ubuntu-latest
+    needs: [ set_environment, build_vpc, deploy_backend_image ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Build ECS
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ needs.set_environment.outputs.project_name }}-${{ inputs.env }}-ecs
+          template: .github/cloudformation/ecs.yml
+          capabilities: CAPABILITY_NAMED_IAM
+          parameter-overrides: >-
+            ProjectName=${{ needs.set_environment.outputs.project_name }},
+            ENV=${{ inputs.env }}
+
+  build_rds:
+    runs-on: ubuntu-latest
+    needs: [ set_environment, build_vpc ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Build RDS
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ needs.set_environment.outputs.project_name }}-${{ inputs.env }}-rds
+          template: .github/cloudformation/rds.yml
+          parameter-overrides: >-
+            ProjectName=${{ needs.set_environment.outputs.project_name }},
+            ENV=${{ inputs.env }}
+
+  build_s3:
+    runs-on: ubuntu-latest
+    needs: [ set_environment ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Build S3
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ needs.set_environment.outputs.project_name }}-${{ inputs.env }}-s3
+          template: .github/cloudformation/s3.yml
+          parameter-overrides: >-
+            ProjectName=${{ needs.set_environment.outputs.project_name }},
+            ENV=${{ inputs.env }}
+
+#  build_websocket:
+#    runs-on: ubuntu-latest
+#    needs: [ set_environment, build_ecs ]
+#    if: ${{ inputs.websocket == 'true' }}
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Configure AWS credentials
+#        uses: aws-actions/configure-aws-credentials@v1
+#        with:
+#          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#          aws-region: ap-northeast-2
+#
+#      - name: Build Websocket
+#        uses: aws-actions/aws-cloudformation-github-deploy@v1
+#        with:
+#          name: ${{ needs.set_environment.outputs.project_name }}-${{ inputs.env }}-websocket
+#          template: .github/cloudformation/websocket.yml
+#          capabilities: CAPABILITY_NAMED_IAM
+#          parameter-overrides: >-
+#            ProjectName=${{ needs.set_environment.outputs.project_name }},
+#            ENV=${{ inputs.env }}

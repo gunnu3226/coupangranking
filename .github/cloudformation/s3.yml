@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description:
+  'S3 IaC'
+
+Parameters:
+  ProjectName:
+    Type: String
+  ENV:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+
+Conditions:
+  IsProd: !Equals [!Ref ENV, 'prod']
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub '${ProjectName}-${ENV}-bucket'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - POST
+            AllowedOrigins:
+              - "*"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+#      LifecycleConfiguration:
+#        Rules:
+#          - Id: !Sub '${ProjectName}-${ENV}-ManageTemporaryFiles'
+#            Status: Enabled
+#            TagFilters:
+#              - Key: status
+#                Value: editing
+#            ExpirationInDays: 1
+#          - Id: !Sub '${ProjectName}-${ENV}-ManageDeletedFiles'
+#            Status: Enabled
+#            TagFilters:
+#              - Key: status
+#                Value: deleted
+#            ExpirationInDays: 30
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Id: !Sub '${ProjectName}-${ENV}-bucket-policy'
+        Version: 2012-10-17
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub 'arn:aws:s3:::${S3Bucket}/*'
+
+Outputs:
+  S3BucketHost:
+    Value: !Sub '${ProjectName}-${ENV}-bucket'

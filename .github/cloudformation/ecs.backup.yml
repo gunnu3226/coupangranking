@@ -1,0 +1,470 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description:
+  'ECS IaC'
+
+Parameters:
+  ProjectName:
+    Type: String
+  ENV:
+    Type: String
+    AllowedValues:
+      - dev
+      - prod
+  Celery:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+Conditions:
+  IsProd: !Equals [!Ref ENV, 'prod']
+  IsCelery: !Equals [!Ref Celery, 'true']
+
+Resources:
+  # Secret Manager
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ProjectName}/${ENV}/django'
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{}'
+        GenerateStringKey: 'key'
+        PasswordLength: 50
+
+  # ECS Cluster
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-${ENV}-ecs-cluster'
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub '${ProjectName}-${ENV}-ecs-cluster-sg'
+      VpcId: {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-VPC'}
+  SecurityGroupInboundSSH:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: 0.0.0.0/0
+  SecurityGroupInboundHTTP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+  SecurityGroupInboundHTTPS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+  SecurityGroupInboundALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: 8080
+      ToPort: 8081
+      SourceSecurityGroupId: !Ref SecurityGroup
+  ServiceAutoscalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [application-autoscaling.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: service-autoscaling
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'application-autoscaling:*'
+                  - 'cloudwatch:DescribeAlarms'
+                  - 'cloudwatch:PutMetricAlarm'
+                  - 'ecs:DescribeServices'
+                  - 'ecs:UpdateService'
+                Resource: '*'
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${ProjectName}-${ENV}-alb'
+      Type: application
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      Subnets:
+        - {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet1'}
+        - {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet2'}
+      SecurityGroups: [!Ref SecurityGroup]
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: 15
+  ALBTargetGroup8080:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ALB
+    Properties:
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /_health/
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 2
+      HealthyThresholdCount: 2
+      Name: !Sub '${ProjectName}-${ENV}-tg-8080'
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      UnhealthyThresholdCount: 2
+      VpcId: {'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-VPC'}
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 5
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.type
+          Value: lb_cookie
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup8080
+  ALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: ALBListener
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup8080
+      Conditions:
+        - Field: path-pattern
+          Values: [/]
+      ListenerArn: !Ref ALBListener
+      Priority: 1
+  TaskDefinitionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ProjectName}/${ENV}'
+      RetentionInDays: 14
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ ecs-tasks.amazonaws.com ]
+            Action: [ 'sts:AssumeRole' ]
+      Path: /
+      Policies:
+        - PolicyName: ecs-task
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:GetRepositoryPolicy'
+                  - 'ecr:DescribeRepositories'
+                  - 'ecr:ListImages'
+                  - 'ecr:DescribeImages'
+                  - 'ecr:BatchGetImage'
+                  - 'ecr:GetLifecyclePolicy'
+                  - 'ecr:GetLifecyclePolicyPreview'
+                  - 'ecr:ListTagsForResource'
+                  - 'ecr:DescribeImageScanFindings'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:DeleteLogStream'
+                  - 'logs:DescribeLogStreams'
+                  - 'logs:PutLogEvents'
+                  - 'logs:PutRetentionPolicy'
+                  - 'xray:*'
+                  - 's3:*'
+                  - 'sqs:*'
+                  - 'secretsmanager:GetResourcePolicy'
+                  - 'secretsmanager:GetSecretValue'
+                  - 'secretsmanager:DescribeSecret'
+                  - 'secretsmanager:ListSecretVersionIds'
+                  - 'secretsmanager:ListSecrets'
+                Resource: '*'
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-${ENV}-execution-role'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+
+  # Web
+  TaskDefinitionWeb:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-${ENV}-web-family'
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !Ref ExecutionRole
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 1 vCPU
+      Memory: 2GB
+      ContainerDefinitions:
+        - Name: web
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectName}-backend:${ENV}'
+          Essential: true
+          StopTimeout: 5
+          PortMappings:
+            - ContainerPort: 8080
+          Environment:
+            - Name: DJANGO_SETTINGS_MODULE
+              Value: !Join ['.', ['config.settings', !Ref ENV]]
+            - Name: ECS_IMAGE_PULL_BEHAVIOR
+              Value: prefer-cached
+            - Name: ALB_URL
+              Value: !Join [ '/', ['https:/', !GetAtt ALB.DNSName, '*' ] ]
+          EntryPoint: [sh, -c]
+          Command:
+            - /bin/bash -c "python manage.py migrate && gunicorn"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TaskDefinitionLogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: /ecs
+  ServiceWeb:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListenerRule
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      ServiceName: web
+      TaskDefinition: !Ref TaskDefinitionWeb
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !If [ IsProd, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet1' }, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet1' } ]
+            - !If [ IsProd, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet2' }, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet2' } ]
+          SecurityGroups: [!Ref SecurityGroup]
+      LoadBalancers:
+        - ContainerName: web
+          ContainerPort: 8080
+          TargetGroupArn: !Ref ALBTargetGroup8080
+  ServiceScalingTargetWeb:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: ServiceWeb
+    Properties:
+      MinCapacity: 1
+      MaxCapacity: 5
+      ResourceId: !Join ['/', [service, !Ref Cluster, !GetAtt ServiceWeb.Name]]
+      RoleARN: !GetAtt ServiceAutoscalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  ServiceScalingPolicyWeb:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${ProjectName}-${ENV}-asg-policy-web'
+      ScalingTargetId: !Ref ServiceScalingTargetWeb
+      PolicyType: TargetTrackingScaling
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Join ['/', [!GetAtt ALB.LoadBalancerFullName, !GetAtt ALBTargetGroup8080.TargetGroupFullName]]
+        TargetValue: 1000
+        ScaleInCooldown: 30
+        ScaleOutCooldown: 30
+  # Celery
+  TaskDefinitionCelery:
+    Type: AWS::ECS::TaskDefinition
+    Condition: IsCelery
+    Properties:
+      Family: !Sub '${ProjectName}-${ENV}-celery-family'
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ExecutionRoleArn: !Ref ExecutionRole
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: .25 vCPU
+      Memory: 0.5GB
+      ContainerDefinitions:
+        - Name: celery
+          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectName}-backend:${ENV}'
+          Essential: true
+          StopTimeout: 5
+          Environment:
+            - Name: DJANGO_SETTINGS_MODULE
+              Value: !Join ['.', ['config.settings', !Ref ENV]]
+            - Name: ECS_IMAGE_PULL_BEHAVIOR
+              Value: prefer-cached
+          EntryPoint: [sh, -c]
+          Command:
+            - /bin/bash -c "celery -A config.tasks worker"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref TaskDefinitionLogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: /ecs
+  ServiceCelery:
+    Type: AWS::ECS::Service
+    Condition: IsCelery
+    DependsOn: ALBListenerRule
+    Properties:
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      ServiceName: celery
+      TaskDefinition: !Ref TaskDefinitionCelery
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !If [ IsProd, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet1' }, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet1' } ]
+            - !If [ IsProd, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet2' }, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet2' } ]
+          SecurityGroups: [ !Ref SecurityGroup ]
+  ServiceScalingTargetCelery:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Condition: IsCelery
+    DependsOn: ServiceCelery
+    Properties:
+      MinCapacity: 1
+      MaxCapacity: 10
+      ResourceId: !Join ['/', [service, !Ref Cluster, !GetAtt ServiceCelery.Name]]
+      RoleARN: !GetAtt ServiceAutoscalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+  ServiceScalingPolicyCelery:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Condition: IsCelery
+    Properties:
+      PolicyName: !Sub '${ProjectName}-${ENV}-asg-policy-celery'
+      ScalingTargetId: !Ref ServiceScalingTargetCelery
+      PolicyType: TargetTrackingScaling
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 75
+        ScaleInCooldown: 30
+        ScaleOutCooldown: 30
+#  # Celerybeat
+#  TaskDefinitionCelerybeat:
+#    Type: AWS::ECS::TaskDefinition
+#    Condition: IsCelerybeat
+#    Properties:
+#      Family: !Sub '${ProjectName}-${ENV}-celerybeat-family'
+#      TaskRoleArn: !GetAtt TaskRole.Arn
+#      ExecutionRoleArn: !Ref ExecutionRole
+#      NetworkMode: awsvpc
+#      RequiresCompatibilities:
+#        - FARGATE
+#      Cpu: .25 vCPU
+#      Memory: 0.5GB
+#      ContainerDefinitions:
+#        - Name: celerybeat
+#          Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ProjectName}-backend:${ENV}'
+#          Essential: true
+#          Environment:
+#            - Name: DJANGO_SETTINGS_MODULE
+#              Value: !Join ['.', ['config.settings', !Ref ENV]]
+#            - Name: ECS_IMAGE_PULL_BEHAVIOR
+#              Value: prefer-cached
+#          EntryPoint: [sh, -c]
+#          Command:
+#            - /bin/bash -c "celery -A config.tasks beat"
+#          LogConfiguration:
+#            LogDriver: awslogs
+#            Options:
+#              awslogs-group: !Ref TaskDefinitionLogGroup
+#              awslogs-region: !Ref 'AWS::Region'
+#              awslogs-stream-prefix: /ecs
+#  ServiceCelerybeat:
+#    Type: AWS::ECS::Service
+#    Condition: IsCelerybeat
+#    Properties:
+#      Cluster: !Ref Cluster
+#      LaunchType: FARGATE
+#      ServiceName: celerybeat
+#      TaskDefinition: !Ref TaskDefinitionCelerybeat
+#      DesiredCount: 1
+#      NetworkConfiguration:
+#        AwsvpcConfiguration:
+#          AssignPublicIp: ENABLED
+#          Subnets:
+#            - !If [ IsProd, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet1' }, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet1' } ]
+#            - !If [ IsProd, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PrivateSubnet2' }, { 'Fn::ImportValue': !Sub '${ProjectName}-${ENV}-PublicSubnet2' } ]
+#          SecurityGroups: [ !Ref SecurityGroup ]
+
+
+  InvokeApiDestinationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ProjectName}-${ENV}-InvokeApiDestinationRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'events.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-${ENV}-InvokeApiDestinationPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'events:InvokeApiDestination'
+                Resource: '*'
+  RuleConnection:
+    Type: AWS::Events::Connection
+    DependsOn: ALB
+    Properties:
+      Name: !Sub '${ProjectName}-${ENV}-connection'
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: x-api-key
+          ApiKeyValue: !Join [ '', [ '{{resolve:secretsmanager:', !Ref Secret, ':SecretString:key}}' ] ]
+  RuleApiDestination:
+    Type: AWS::Events::ApiDestination
+    DependsOn: RuleConnection
+    Properties:
+      Name: !Sub '${ProjectName}-${ENV}-api-destination'
+      ConnectionArn: !GetAtt RuleConnection.Arn
+      HttpMethod: POST
+      InvocationEndpoint: !Join [ '/', ['https:/', !GetAtt ALB.DNSName, '*' ] ]
+      InvocationRateLimitPerSecond: 300
+
+Outputs:
+  ALBDNSName:
+    value: !Join [ '/', ['https:/', !GetAtt ALB.DNSName, '*' ] ]
+    Export:
+      Name: !Sub '${ProjectName}-${ENV}-ALBDNSName'
+  APIKey:
+    value: !Join [ '', [ '{{resolve:secretsmanager:', !Ref Secret, ':SecretString:key}}' ] ]
+    Export:
+      Name: !Sub '${ProjectName}-${ENV}-APIKey'
