@@ -78,18 +78,19 @@
 
         .tabs {
             display: flex;
-            gap: 10px;
+            gap: 5px;
             margin-bottom: 20px;
             border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
         }
 
         .tab {
-            padding: 15px 30px;
+            padding: 10px 15px;
             background: none;
             border: none;
             border-bottom: 3px solid transparent;
             cursor: pointer;
-            font-size: 1.1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             color: #666;
             transition: all 0.3s;
@@ -369,6 +370,9 @@
             <button class="tab" onclick="showTab('normal')">일반 상품</button>
             <button class="tab" onclick="showTab('table-all')">📊 전체 테이블</button>
             <button class="tab" onclick="showTab('table')">📊 랭킹 테이블</button>
+            <button class="tab" onclick="showTab('excel')">📋 엑셀 전체</button>
+            <button class="tab" onclick="showTab('excel-tplink')">📋 티피링크</button>
+            <button class="tab" onclick="showTab('excel-iptime')">📋 ipTIME</button>
         </div>
 
         <!-- 전체 상품 -->
@@ -615,6 +619,120 @@
                 <p>랭킹 상품이 없습니다.</p>
             </div>
         </div>
+
+        <!-- 엑셀 복사용 -->
+        <div id="excel" class="tab-content">
+            <div th:if="${allProducts != null and !allProducts.isEmpty()}">
+                <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-left: 4px solid #667eea; border-radius: 4px;">
+                    <h3 style="margin: 0 0 10px 0; color: #667eea;">📋 엑셀 복사 방법</h3>
+                    <p style="margin: 5px 0; color: #666;">1. 아래 표를 마우스로 드래그하여 전체 선택</p>
+                    <p style="margin: 5px 0; color: #666;">2. Ctrl+C (Mac: Cmd+C)로 복사</p>
+                    <p style="margin: 5px 0; color: #666;">3. 엑셀에서 Ctrl+V (Mac: Cmd+V)로 붙여넣기</p>
+                    <button onclick="copyTableToClipboard()" style="margin-top: 10px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📋 전체 복사
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table id="excelTable" style="border-collapse: collapse; border: 1px solid #ddd; font-size: 12px; width: 100%;">
+                        <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; width: 55%;">상품명</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; width: 10%;">노출순위</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 20%;">판가</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 15%;">댓글수</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="product : ${allProducts}">
+                            <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px; width: 55%;" th:text="${product.productName}">상품명</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; width: 10%;" th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 20%;" th:text="${#strings.replace(product.currentPrice, '원', '')}">가격</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 15%;" th:text="${product.reviewCount != null ? #strings.replace(#strings.replace(product.reviewCount, '(', ''), ')', '') : ''}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="empty-state" th:if="${allProducts == null or allProducts.isEmpty()}">
+                <p>상품이 없습니다.</p>
+            </div>
+        </div>
+
+        <!-- 엑셀 복사용 - 티피링크 -->
+        <div id="excel-tplink" class="tab-content">
+            <div th:if="${tpLinkProducts != null and !tpLinkProducts.isEmpty()}">
+                <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-left: 4px solid #667eea; border-radius: 4px;">
+                    <h3 style="margin: 0 0 10px 0; color: #667eea;">📋 티피링크 제품 - 엑셀 복사</h3>
+                    <p style="margin: 5px 0; color: #666;">1. 아래 표를 마우스로 드래그하여 전체 선택</p>
+                    <p style="margin: 5px 0; color: #666;">2. Ctrl+C (Mac: Cmd+C)로 복사</p>
+                    <p style="margin: 5px 0; color: #666;">3. 엑셀에서 Ctrl+V (Mac: Cmd+V)로 붙여넣기</p>
+                    <button onclick="copyTableToClipboard('excelTableTpLink')" style="margin-top: 10px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📋 전체 복사
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table id="excelTableTpLink" style="border-collapse: collapse; border: 1px solid #ddd; font-size: 12px; width: 100%;">
+                        <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; width: 55%;">상품명</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; width: 10%;">노출순위</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 20%;">판가</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 15%;">댓글수</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="product : ${tpLinkProducts}">
+                            <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px; width: 55%;" th:text="${product.productName}">상품명</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; width: 10%;" th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 20%;" th:text="${#strings.replace(product.currentPrice, '원', '')}">가격</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 15%;" th:text="${product.reviewCount != null ? #strings.replace(#strings.replace(product.reviewCount, '(', ''), ')', '') : ''}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="empty-state" th:if="${tpLinkProducts == null or tpLinkProducts.isEmpty()}">
+                <p>티피링크 상품이 없습니다.</p>
+            </div>
+        </div>
+
+        <!-- 엑셀 복사용 - ipTIME -->
+        <div id="excel-iptime" class="tab-content">
+            <div th:if="${ipTimeProducts != null and !ipTimeProducts.isEmpty()}">
+                <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-left: 4px solid #667eea; border-radius: 4px;">
+                    <h3 style="margin: 0 0 10px 0; color: #667eea;">📋 ipTIME 제품 - 엑셀 복사</h3>
+                    <p style="margin: 5px 0; color: #666;">1. 아래 표를 마우스로 드래그하여 전체 선택</p>
+                    <p style="margin: 5px 0; color: #666;">2. Ctrl+C (Mac: Cmd+C)로 복사</p>
+                    <p style="margin: 5px 0; color: #666;">3. 엑셀에서 Ctrl+V (Mac: Cmd+V)로 붙여넣기</p>
+                    <button onclick="copyTableToClipboard('excelTableIpTime')" style="margin-top: 10px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        📋 전체 복사
+                    </button>
+                </div>
+                <div class="table-container">
+                    <table id="excelTableIpTime" style="border-collapse: collapse; border: 1px solid #ddd; font-size: 12px; width: 100%;">
+                        <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; width: 55%;">상품명</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; width: 10%;">노출순위</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 20%;">판가</th>
+                            <th style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 15%;">댓글수</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="product : ${ipTimeProducts}">
+                            <td style="border: 1px solid #ddd; padding: 8px; font-size: 12px; width: 55%;" th:text="${product.productName}">상품명</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; width: 10%;" th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 20%;" th:text="${#strings.replace(product.currentPrice, '원', '')}">가격</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-size: 12px; width: 15%;" th:text="${product.reviewCount != null ? #strings.replace(#strings.replace(product.reviewCount, '(', ''), ')', '') : ''}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="empty-state" th:if="${ipTimeProducts == null or ipTimeProducts.isEmpty()}">
+                <p>ipTIME 상품이 없습니다.</p>
+            </div>
+        </div>
     </div>
 
     <div th:unless="${success}" class="error-message">
@@ -636,6 +754,31 @@
         // 선택한 탭 활성화
         event.target.classList.add('active');
         document.getElementById(tabName).classList.add('active');
+    }
+
+    function copyTableToClipboard(tableId) {
+        // tableId가 없으면 기본값 사용
+        const id = tableId || 'excelTable';
+        const table = document.getElementById(id);
+
+        if (!table) {
+            alert('테이블을 찾을 수 없습니다.');
+            return;
+        }
+
+        const range = document.createRange();
+        range.selectNode(table);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+
+        try {
+            document.execCommand('copy');
+            alert('표가 클립보드에 복사되었습니다!\n엑셀에 붙여넣기 하세요.');
+        } catch (err) {
+            alert('복사에 실패했습니다. 수동으로 표를 드래그하여 복사해주세요.');
+        }
+
+        window.getSelection().removeAllRanges();
     }
 </script>
 </body>

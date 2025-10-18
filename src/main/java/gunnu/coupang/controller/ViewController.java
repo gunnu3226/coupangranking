@@ -1,5 +1,6 @@
 package gunnu.coupang.controller;
 
+import gunnu.coupang.dto.ProductInfo;
 import gunnu.coupang.dto.ProductListResponse;
 import gunnu.coupang.service.HtmlParserService;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Controller
@@ -59,8 +62,17 @@ public class ViewController {
 
             ProductListResponse response = htmlParserService.extractProductList(htmlContent);
 
+            // 상품명 기준으로 정렬: 티피링크 -> ipTIME -> 나머지
+            List<ProductInfo> sortedProducts = sortProductsByBrand(response.getAllProducts());
+
+            // 브랜드별 분리
+            List<ProductInfo> tpLinkProducts = filterByBrand(response.getAllProducts(), "tplink");
+            List<ProductInfo> ipTimeProducts = filterByBrand(response.getAllProducts(), "iptime");
+
             model.addAttribute("success", response.isSuccess());
-            model.addAttribute("allProducts", response.getAllProducts());
+            model.addAttribute("allProducts", sortedProducts);
+            model.addAttribute("tpLinkProducts", tpLinkProducts);
+            model.addAttribute("ipTimeProducts", ipTimeProducts);
             model.addAttribute("rankedProducts", response.getRankedProducts());
             model.addAttribute("adProducts", response.getAdProducts());
             model.addAttribute("normalProducts", response.getNormalProducts());
@@ -77,5 +89,68 @@ public class ViewController {
             model.addAttribute("message", "오류 발생: " + e.getMessage());
             return "result";
         }
+    }
+
+    /**
+     * 상품명 기준으로 정렬: 티피링크 -> ipTIME -> 나머지
+     */
+    private List<ProductInfo> sortProductsByBrand(List<ProductInfo> products) {
+        if (products == null || products.isEmpty()) {
+            return products;
+        }
+
+        List<ProductInfo> tpLinkProducts = new ArrayList<>();
+        List<ProductInfo> ipTimeProducts = new ArrayList<>();
+        List<ProductInfo> otherProducts = new ArrayList<>();
+
+        for (ProductInfo product : products) {
+            String productName = product.getProductName();
+            if (productName != null) {
+                if (productName.contains("티피링크") || productName.toLowerCase().contains("tp-link")
+                    || productName.toLowerCase().contains("tplink")) {
+                    tpLinkProducts.add(product);
+                } else if (productName.contains("ipTIME") || productName.toLowerCase().contains("iptime")) {
+                    ipTimeProducts.add(product);
+                } else {
+                    otherProducts.add(product);
+                }
+            } else {
+                otherProducts.add(product);
+            }
+        }
+
+        List<ProductInfo> sortedProducts = new ArrayList<>();
+        sortedProducts.addAll(tpLinkProducts);
+        sortedProducts.addAll(ipTimeProducts);
+        sortedProducts.addAll(otherProducts);
+
+        return sortedProducts;
+    }
+
+    /**
+     * 특정 브랜드 상품만 필터링
+     */
+    private List<ProductInfo> filterByBrand(List<ProductInfo> products, String brand) {
+        if (products == null || products.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<ProductInfo> filteredProducts = new ArrayList<>();
+        for (ProductInfo product : products) {
+            String productName = product.getProductName();
+            if (productName != null) {
+                if (brand.equals("tplink")) {
+                    if (productName.contains("티피링크") || productName.toLowerCase().contains("tp-link")
+                        || productName.toLowerCase().contains("tplink")) {
+                        filteredProducts.add(product);
+                    }
+                } else if (brand.equals("iptime")) {
+                    if (productName.contains("ipTIME") || productName.toLowerCase().contains("iptime")) {
+                        filteredProducts.add(product);
+                    }
+                }
+            }
+        }
+        return filteredProducts;
     }
 }
