@@ -1,7 +1,7 @@
 FROM openjdk:17-alpine
 LABEL authors="gunnu"
 
-COPY ./build/libs/tamjung-0.0.1-SNAPSHOT.jar app.jar
+COPY ./build/libs/coupang-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
