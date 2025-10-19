@@ -14,7 +14,7 @@ jobs:
   set_environment:
     runs-on: ubuntu-latest
     outputs:
-      project_name: po#${{ steps.set_environment.outputs.project_name }}
+      project_name: ${{ steps.set_environment.outputs.project_name }}
       project_env: ${{ steps.set_environment.outputs.project_env }}
     steps:
       - id: set_environment
