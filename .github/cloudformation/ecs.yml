@@ -226,7 +226,7 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      Cpu: 1 vCPU
+      Cpu: 0.5 vCPU
       Memory: 2GB
       ContainerDefinitions:
         - Name: web
