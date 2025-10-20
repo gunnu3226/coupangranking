@@ -221,4 +221,41 @@ public class ProductDataService {
                 .sorted((a, b) -> b.compareTo(a)) // 최신 날짜 우선
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 광고를 제외한 전체 상품 조회 (회사 구분 없이)
+     */
+    @Transactional(readOnly = true)
+    public List<SavedProductData> getAllNonAdProducts(Category category, LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
+        log.info("광고 제외 전체 데이터 조회 - 날짜: {}, 카테고리: {}", targetDate, category);
+
+        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll();
+
+        return dailyDataList.stream()
+                .filter(data -> data.getDate().equals(targetDate))
+                .filter(data -> data.getProduct().getCategory() == category)
+                .filter(data -> !data.getIsAd()) // 광고 제외
+                .map(data -> SavedProductData.builder()
+                        .productId(data.getProduct().getProductId())
+                        .productName(data.getProduct().getProductName())
+                        .date(data.getDate())
+                        .ranking(data.getRanking())
+                        .currentPrice(data.getCurrentPrice())
+                        .reviewCount(data.getReviewCount())
+                        .isAd(data.getIsAd())
+                        .build())
+                .sorted((a, b) -> {
+                    // ranking으로 정렬
+                    if (a.getRanking() != null && b.getRanking() != null) {
+                        return a.getRanking().compareTo(b.getRanking());
+                    } else if (a.getRanking() != null) {
+                        return -1;
+                    } else if (b.getRanking() != null) {
+                        return 1;
+                    }
+                    return 0;
+                })
+                .collect(Collectors.toList());
+    }
 }

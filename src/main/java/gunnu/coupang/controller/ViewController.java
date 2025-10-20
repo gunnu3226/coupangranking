@@ -64,6 +64,10 @@ public class ViewController {
         List<SavedProductData> asusProducts = productDataService
                 .getProductDataByCategoryAndCompany(Category.ROUTER, Company.ASUS, selectedDate);
 
+        // 광고 제외 전체 상품 조회
+        List<SavedProductData> allNonAdProducts = productDataService
+                .getAllNonAdProducts(Category.ROUTER, selectedDate);
+
         // 저장된 날짜 목록 조회
         List<LocalDate> availableDates = productDataService.getAvailableDates();
 
@@ -72,6 +76,7 @@ public class ViewController {
         model.addAttribute("netisProducts", netisProducts);
         model.addAttribute("mercusysProducts", mercusysProducts);
         model.addAttribute("asusProducts", asusProducts);
+        model.addAttribute("allNonAdProducts", allNonAdProducts);
         model.addAttribute("availableDates", availableDates);
         model.addAttribute("selectedDate", selectedDate != null ? selectedDate : LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
 

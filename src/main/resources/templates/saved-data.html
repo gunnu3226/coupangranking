@@ -296,6 +296,37 @@
 
     <!-- 공유기 탭 -->
     <div id="router" class="tab-content active">
+        <!-- 전체 순위 (광고 제외) -->
+        <div class="company-section" th:if="${allNonAdProducts != null and !allNonAdProducts.isEmpty()}">
+            <div class="company-header">
+                <h3>🏆 전체 순위 (광고 제외) (<span id="count-all" th:text="${allNonAdProducts.size()}">0</span>개)</h3>
+                <button class="copy-button" onclick="copyTableToClipboard('table-all')">📋 복사</button>
+            </div>
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 상품명 검색..." onkeyup="searchTable('table-all', 'count-all', this.value)">
+            </div>
+            <div class="table-container">
+                <table id="table-all">
+                    <thead>
+                    <tr>
+                        <th>상품명</th>
+                        <th>노출순위</th>
+                        <th>판가</th>
+                        <th>댓글수</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="product : ${allNonAdProducts}">
+                        <td th:text="${product.productName}">상품명</td>
+                        <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.currentPrice}">가격</td>
+                        <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- IPTIME -->
         <div class="company-section" th:if="${iptimeProducts != null and !iptimeProducts.isEmpty()}">
             <div class="company-header">
@@ -550,8 +581,8 @@
         }
         document.getElementById(buttonId).classList.add('active');
 
-        // Filter all tables
-        const tables = ['iptime', 'tplink', 'netis', 'mercusys', 'asus'];
+        // Filter all tables (including the all products table)
+        const tables = ['all', 'iptime', 'tplink', 'netis', 'mercusys', 'asus'];
         tables.forEach(company => {
             const tableId = 'table-' + company;
             const countId = 'count-' + company;
