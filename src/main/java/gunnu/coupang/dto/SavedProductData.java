@@ -18,4 +18,5 @@ public class SavedProductData {
     private Integer ranking;
     private String currentPrice;
     private String reviewCount;
+    private boolean isAd;
 }

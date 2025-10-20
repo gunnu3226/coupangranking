@@ -193,6 +193,7 @@ public class ProductDataService {
                         .ranking(data.getRanking())
                         .currentPrice(data.getCurrentPrice())
                         .reviewCount(data.getReviewCount())
+                        .isAd(data.getIsAd())
                         .build())
                 .sorted((a, b) -> {
                     // ranking이 있는 것 우선 정렬

@@ -213,6 +213,35 @@
         .hidden-row {
             display: none;
         }
+
+        .filter-button {
+            padding: 10px 20px;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .filter-button:hover {
+            background: #f0f0ff;
+        }
+
+        .filter-button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .ad-row {
+            background-color: #fff3cd !important;
+        }
+
+        .ad-row:hover {
+            background-color: #ffe69c !important;
+        }
     </style>
 </head>
 <body>
@@ -242,6 +271,24 @@
         </select>
     </div>
 
+    <!-- 광고/일반 필터 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">
+            🎯 제품 유형:
+        </label>
+        <div style="display: flex; gap: 10px;">
+            <button id="filterAll" class="filter-button active" onclick="filterProducts('all')">
+                전체
+            </button>
+            <button id="filterNonAd" class="filter-button" onclick="filterProducts('non-ad')">
+                일반 제품
+            </button>
+            <button id="filterAd" class="filter-button" onclick="filterProducts('ad')">
+                광고 제품
+            </button>
+        </div>
+    </div>
+
     <div class="tabs">
         <button class="tab active" onclick="showTab('router')">공유기</button>
         <button class="tab" onclick="showTab('camera')">카메라 (준비중)</button>
@@ -269,7 +316,7 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="product : ${iptimeProducts}">
+                    <tr th:each="product : ${iptimeProducts}" th:classappend="${product.ad ? 'ad-row' : ''}" th:data-is-ad="${product.ad}">
                         <td th:text="${product.productName}">상품명</td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
@@ -300,7 +347,7 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="product : ${tplinkProducts}">
+                    <tr th:each="product : ${tplinkProducts}" th:classappend="${product.ad ? 'ad-row' : ''}" th:data-is-ad="${product.ad}">
                         <td th:text="${product.productName}">상품명</td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
@@ -331,7 +378,7 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="product : ${netisProducts}">
+                    <tr th:each="product : ${netisProducts}" th:classappend="${product.ad ? 'ad-row' : ''}" th:data-is-ad="${product.ad}">
                         <td th:text="${product.productName}">상품명</td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
@@ -362,7 +409,7 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="product : ${mercusysProducts}">
+                    <tr th:each="product : ${mercusysProducts}" th:classappend="${product.ad ? 'ad-row' : ''}" th:data-is-ad="${product.ad}">
                         <td th:text="${product.productName}">상품명</td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
@@ -393,7 +440,7 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="product : ${asusProducts}">
+                    <tr th:each="product : ${asusProducts}" th:classappend="${product.ad ? 'ad-row' : ''}" th:data-is-ad="${product.ad}">
                         <td th:text="${product.productName}">상품명</td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
@@ -481,6 +528,65 @@
         }
 
         document.getElementById(countId).textContent = visibleCount;
+    }
+
+    let currentFilter = 'all';
+
+    function filterProducts(filterType) {
+        currentFilter = filterType;
+
+        // Update button states
+        document.querySelectorAll('.filter-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        let buttonId;
+        if (filterType === 'all') {
+            buttonId = 'filterAll';
+        } else if (filterType === 'non-ad') {
+            buttonId = 'filterNonAd';
+        } else if (filterType === 'ad') {
+            buttonId = 'filterAd';
+        }
+        document.getElementById(buttonId).classList.add('active');
+
+        // Filter all tables
+        const tables = ['iptime', 'tplink', 'netis', 'mercusys', 'asus'];
+        tables.forEach(company => {
+            const tableId = 'table-' + company;
+            const countId = 'count-' + company;
+            const table = document.getElementById(tableId);
+
+            if (!table) return;
+
+            const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            let visibleCount = 0;
+
+            for (let row of rows) {
+                const isAd = row.getAttribute('data-is-ad') === 'true';
+                let shouldShow = false;
+
+                if (filterType === 'all') {
+                    shouldShow = true;
+                } else if (filterType === 'ad') {
+                    shouldShow = isAd;
+                } else if (filterType === 'non-ad') {
+                    shouldShow = !isAd;
+                }
+
+                if (shouldShow && !row.classList.contains('hidden-row')) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else if (!shouldShow) {
+                    row.style.display = 'none';
+                }
+            }
+
+            const countElement = document.getElementById(countId);
+            if (countElement) {
+                countElement.textContent = visibleCount;
+            }
+        });
     }
 </script>
 </body>
