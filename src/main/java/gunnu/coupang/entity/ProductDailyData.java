@@ -51,6 +51,9 @@ public class ProductDailyData {
     @Column(name = "review_count")
     private String reviewCount;
 
+    @Column(name = "product_url", length = 1000)
+    private String productUrl;
+
 //    @Column(name = "delivery_info", length = 500)
 //    private String deliveryInfo;
 

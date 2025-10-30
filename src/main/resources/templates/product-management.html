@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>상품 데이터 관리</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            margin: 0 0 10px 0;
+            color: #667eea;
+        }
+
+        .company-section {
+            margin-bottom: 40px;
+        }
+
+        .company-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .company-header h3 {
+            margin: 0;
+            font-size: 1.3rem;
+        }
+
+        .copy-button {
+            padding: 8px 16px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .copy-button:hover {
+            background: #f0f0f0;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #ddd;
+            font-size: 12px;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 12px;
+            color: #000;
+        }
+
+        th:nth-child(1) { width: 5%; text-align: center; }
+        th:nth-child(2) { width: 10%; text-align: left; }
+        th:nth-child(3) { width: 50%; text-align: left; }
+        th:nth-child(4) { width: 15%; text-align: left; }
+        th:nth-child(5) { width: 20%; text-align: left; }
+
+        tbody tr {
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        td:nth-child(1) { width: 5%; text-align: center; }
+        td:nth-child(2) { width: 10%; }
+        td:nth-child(3) { width: 50%; }
+        td:nth-child(4) { width: 15%; }
+        td:nth-child(5) { width: 20%; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .search-box {
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .hidden-row {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="back-button">← 돌아가기</a>
+
+    <h1>📦 상품 데이터 관리</h1>
+
+    <div class="info-box">
+        <h3>전체 상품 목록</h3>
+        <p style="margin: 5px 0; color: #666;">총 <strong th:text="${totalCount}">0</strong>개의 상품</p>
+        <p style="margin: 5px 0; color: #666;">💡 보고싶은 상품을 선택하고 저장하세요</p>
+    </div>
+
+    <!-- 선택 상품 저장 버튼 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <p style="margin: 0; font-weight: 600; color: #333;">✅ 선택한 상품: <span id="selectedCount">0</span>개</p>
+            <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #666;">원하는 상품을 체크박스로 선택하고 저장하세요</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="selectAllProducts()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">전체 선택</button>
+            <button onclick="deselectAllProducts()" style="padding: 10px 20px; background: #999; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">전체 해제</button>
+            <button onclick="saveFavorites()" style="padding: 10px 20px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">💾 저장</button>
+            <a href="/favorite-order-edit" style="padding: 10px 20px; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block;">📝 순서 편집</a>
+        </div>
+    </div>
+
+    <!-- 전체 상품 -->
+    <div class="company-section" th:if="${allProducts != null and !allProducts.isEmpty()}">
+        <div class="company-header">
+            <h3>🏆 전체 상품 (<span id="count-all" th:text="${allProducts.size()}">0</span>개)</h3>
+            <button class="copy-button" onclick="copyTableToClipboard('table-all')">📋 복사</button>
+        </div>
+        <div class="search-box">
+            <input type="text" class="search-input" placeholder="🔍 상품명 또는 itemId 검색..." onkeyup="searchTable('table-all', 'count-all', this.value)">
+        </div>
+        <div class="table-container">
+            <table id="table-all">
+                <thead>
+                <tr>
+                    <th>선택</th>
+                    <th>itemId</th>
+                    <th>상품명</th>
+                    <th>모델코드</th>
+                    <th>회사</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="product : ${allProducts}">
+                    <td>
+                        <input type="checkbox" class="product-checkbox" th:value="${product.id}"
+                               th:checked="${favoriteProductIds.contains(product.id)}" onchange="updateSelectedCount()">
+                    </td>
+                    <td th:text="${product.itemId}">itemId</td>
+                    <td th:text="${product.productName}">상품명</td>
+                    <td th:text="${product.modelCode}">모델코드</td>
+                    <td th:text="${product.company}">회사</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- IPTIME -->
+    <div class="company-section" th:if="${iptimeProducts != null and !iptimeProducts.isEmpty()}">
+        <div class="company-header">
+            <h3>ipTIME (<span id="count-iptime" th:text="${iptimeProducts.size()}">0</span>개)</h3>
+            <button class="copy-button" onclick="copyTableToClipboard('table-iptime')">📋 복사</button>
+        </div>
+        <div class="search-box">
+            <input type="text" class="search-input" placeholder="🔍 상품명 또는 itemId 검색..." onkeyup="searchTable('table-iptime', 'count-iptime', this.value)">
+        </div>
+        <div class="table-container">
+            <table id="table-iptime">
+                <thead>
+                <tr>
+                    <th>선택</th>
+                    <th>itemId</th>
+                    <th>상품명</th>
+                    <th>모델코드</th>
+                    <th>회사</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="product : ${iptimeProducts}">
+                    <td>
+                        <input type="checkbox" class="product-checkbox" th:value="${product.id}"
+                               th:checked="${favoriteProductIds.contains(product.id)}" onchange="updateSelectedCount()">
+                    </td>
+                    <td th:text="${product.itemId}">itemId</td>
+                    <td th:text="${product.productName}">상품명</td>
+                    <td th:text="${product.modelCode}">모델코드</td>
+                    <td th:text="${product.company}">회사</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TPLINK -->
+    <div class="company-section" th:if="${tplinkProducts != null and !tplinkProducts.isEmpty()}">
+        <div class="company-header">
+            <h3>TP-Link (<span id="count-tplink" th:text="${tplinkProducts.size()}">0</span>개)</h3>
+            <button class="copy-button" onclick="copyTableToClipboard('table-tplink')">📋 복사</button>
+        </div>
+        <div class="search-box">
+            <input type="text" class="search-input" placeholder="🔍 상품명 또는 itemId 검색..." onkeyup="searchTable('table-tplink', 'count-tplink', this.value)">
+        </div>
+        <div class="table-container">
+            <table id="table-tplink">
+                <thead>
+                <tr>
+                    <th>선택</th>
+                    <th>itemId</th>
+                    <th>상품명</th>
+                    <th>모델코드</th>
+                    <th>회사</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="product : ${tplinkProducts}">
+                    <td>
+                        <input type="checkbox" class="product-checkbox" th:value="${product.id}"
+                               th:checked="${favoriteProductIds.contains(product.id)}" onchange="updateSelectedCount()">
+                    </td>
+                    <td th:text="${product.itemId}">itemId</td>
+                    <td th:text="${product.productName}">상품명</td>
+                    <td th:text="${product.modelCode}">모델코드</td>
+                    <td th:text="${product.company}">회사</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="empty-state" th:if="${totalCount == 0}">
+        <p>등록된 상품이 없습니다.</p>
+        <p style="margin-top: 10px;">먼저 HTML을 파싱하여 상품을 저장해주세요.</p>
+    </div>
+</div>
+
+<script>
+    function copyTableToClipboard(tableId) {
+        const table = document.getElementById(tableId);
+
+        if (!table) {
+            alert('테이블을 찾을 수 없습니다.');
+            return;
+        }
+
+        const range = document.createRange();
+        range.selectNode(table);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+
+        try {
+            document.execCommand('copy');
+            alert('표가 클립보드에 복사되었습니다!\n엑셀에 붙여넣기 하세요.');
+        } catch (err) {
+            alert('복사에 실패했습니다. 수동으로 표를 드래그하여 복사해주세요.');
+        }
+
+        window.getSelection().removeAllRanges();
+    }
+
+    function searchTable(tableId, countId, searchValue) {
+        const filter = searchValue.replace(/\s/g, '').toLowerCase();
+        const table = document.getElementById(tableId);
+        const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+        let visibleCount = 0;
+
+        for (let row of rows) {
+            const itemId = row.cells[1].textContent;
+            const productName = row.cells[2].textContent;
+
+            const normalizedItemId = itemId.replace(/\s/g, '').toLowerCase();
+            const normalizedName = productName.replace(/\s/g, '').toLowerCase();
+
+            if (normalizedItemId.includes(filter) || normalizedName.includes(filter)) {
+                row.classList.remove('hidden-row');
+                visibleCount++;
+            } else {
+                row.classList.add('hidden-row');
+            }
+        }
+
+        document.getElementById(countId).textContent = visibleCount;
+    }
+
+    // 선택된 상품 개수 업데이트
+    function updateSelectedCount() {
+        const checkboxes = document.querySelectorAll('.product-checkbox:checked');
+        document.getElementById('selectedCount').textContent = checkboxes.length;
+    }
+
+    // 전체 선택
+    function selectAllProducts() {
+        const checkboxes = document.querySelectorAll('.product-checkbox');
+        checkboxes.forEach(cb => cb.checked = true);
+        updateSelectedCount();
+    }
+
+    // 전체 해제
+    function deselectAllProducts() {
+        const checkboxes = document.querySelectorAll('.product-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+        updateSelectedCount();
+    }
+
+    // 선택한 상품 저장
+    async function saveFavorites() {
+        const checkboxes = document.querySelectorAll('.product-checkbox:checked');
+        const productIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        if (productIds.length === 0) {
+            alert('선택한 상품이 없습니다.');
+            return;
+        }
+
+        if (!confirm(`${productIds.length}개의 상품을 저장하시겠습니까?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/favorites', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ productIds: productIds })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`${result.count}개의 상품이 저장되었습니다.`);
+                location.reload();
+            } else {
+                alert('저장에 실패했습니다: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 페이지 로드 시 선택된 상품 개수 업데이트
+    document.addEventListener('DOMContentLoaded', function() {
+        updateSelectedCount();
+    });
+</script>
+</body>
+</html>

@@ -194,15 +194,39 @@ public class HtmlParserService {
     private ProductInfo parseProductItem(Element item) {
         ProductInfo.ProductInfoBuilder builder = ProductInfo.builder();
 
-        // 1. 상품 ID (data-id)
-        String productId = item.attr("data-id");
-        builder.productId(productId);
+        // 1. vendorItemId (data-id)
+        String vendorItemId = item.attr("data-id");
+        builder.vendorItemId(vendorItemId);
 
-        // 2. 링크 정보
+        // 2. 링크 정보와 itemId, productId 추출
         Element linkElement = item.selectFirst("a");
         if (linkElement != null) {
             String href = linkElement.attr("href");
             builder.productUrl("https://www.coupang.com" + href);
+
+            // URL에서 itemId와 productId 추출
+            // URL 형식: /vp/products/8586147830?itemId=24915072273&vendorItemId=...
+            try {
+                // productId 추출 (URL 경로에서)
+                if (href.contains("/products/")) {
+                    String[] parts = href.split("/products/");
+                    if (parts.length > 1) {
+                        String productIdPart = parts[1].split("\\?")[0];
+                        builder.productId(productIdPart);
+                    }
+                }
+
+                // itemId 추출 (쿼리 파라미터에서)
+                if (href.contains("itemId=")) {
+                    String[] params = href.split("itemId=");
+                    if (params.length > 1) {
+                        String itemId = params[1].split("&")[0];
+                        builder.itemId(itemId);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("URL에서 productId 또는 itemId 추출 실패: {}", href, e);
+            }
         }
 
         // 3. 이미지 URL

@@ -134,6 +134,22 @@
             margin-top: 5px;
         }
 
+        .nav-button {
+            display: inline-block;
+            padding: 15px 30px;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
     </style>
 </head>
 <body>
@@ -173,9 +189,12 @@
         </div>
     </div>
 
-    <div style="margin-top: 30px; text-align: center;">
-        <a href="/saved-data" style="display: inline-block; padding: 15px 30px; background: #28a745; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 1.1rem; transition: all 0.3s;">
+    <div style="margin-top: 30px; text-align: center; display: flex; gap: 15px; justify-content: center;">
+        <a href="/saved-data" class="nav-button" style="background: #28a745;">
             📊 저장된 데이터 보기
+        </a>
+        <a href="/product-management" class="nav-button" style="background: #667eea;">
+            📦 상품 데이터 관리
         </a>
     </div>
 </div>

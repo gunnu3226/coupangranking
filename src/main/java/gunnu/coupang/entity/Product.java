@@ -15,7 +15,14 @@ import java.time.LocalDateTime;
 public class Product {
 
     @Id
-    @Column(name = "product_id", nullable = false, unique = true)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "item_id", nullable = false)
+    private String itemId;
+
+    @Column(name = "product_id", nullable = false)
     private String productId;
 
     @Column(name = "product_name", length = 500)

@@ -7,6 +7,7 @@ import gunnu.coupang.entity.Category;
 import gunnu.coupang.entity.Company;
 import gunnu.coupang.service.HtmlParserService;
 import gunnu.coupang.service.ProductDataService;
+import gunnu.coupang.service.FavoriteProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
@@ -18,7 +19,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -28,6 +31,7 @@ public class ViewController {
 
     private final HtmlParserService htmlParserService;
     private final ProductDataService productDataService;
+    private final FavoriteProductService favoriteProductService;
 
     /**
      * 메인 페이지 (HTML 입력 폼)
@@ -35,6 +39,61 @@ public class ViewController {
     @GetMapping("/")
     public String index() {
         return "index";
+    }
+
+    /**
+     * 선택 상품 순서 편집 페이지
+     */
+    @GetMapping("/favorite-order-edit")
+    public String favoriteOrderEdit(Model model) {
+        // 선택된 상품 목록 조회 (displayOrder 기준 정렬)
+        List<gunnu.coupang.entity.FavoriteProduct> favoriteProducts =
+                favoriteProductService.getFavoritesOrderedByDisplayOrder();
+
+        model.addAttribute("favoriteProducts", favoriteProducts);
+        model.addAttribute("totalCount", favoriteProducts.size());
+
+        return "favorite-order-edit";
+    }
+
+    /**
+     * 상품 데이터 관리 페이지
+     */
+    @GetMapping("/product-management")
+    public String productManagement(Model model) {
+        // 공유기 카테고리의 전체 상품 목록 조회
+        List<gunnu.coupang.entity.Product> products = productDataService.getProductsByCategory(Category.ROUTER);
+
+        // 선택된 상품 ID 목록 조회
+        java.util.Set<Long> favoriteProductIds = favoriteProductService.getFavoriteProductIds();
+
+        // 회사별 분류
+        List<gunnu.coupang.entity.Product> iptimeProducts = products.stream()
+                .filter(p -> p.getCompany() == Company.IPTIME)
+                .collect(Collectors.toList());
+        List<gunnu.coupang.entity.Product> tplinkProducts = products.stream()
+                .filter(p -> p.getCompany() == Company.TPLINK)
+                .collect(Collectors.toList());
+        List<gunnu.coupang.entity.Product> netisProducts = products.stream()
+                .filter(p -> p.getCompany() == Company.NETIS)
+                .collect(Collectors.toList());
+        List<gunnu.coupang.entity.Product> mercusysProducts = products.stream()
+                .filter(p -> p.getCompany() == Company.MERCUSYS)
+                .collect(Collectors.toList());
+        List<gunnu.coupang.entity.Product> asusProducts = products.stream()
+                .filter(p -> p.getCompany() == Company.ASUS)
+                .collect(Collectors.toList());
+
+        model.addAttribute("allProducts", products);
+        model.addAttribute("iptimeProducts", iptimeProducts);
+        model.addAttribute("tplinkProducts", tplinkProducts);
+        model.addAttribute("netisProducts", netisProducts);
+        model.addAttribute("mercusysProducts", mercusysProducts);
+        model.addAttribute("asusProducts", asusProducts);
+        model.addAttribute("favoriteProductIds", favoriteProductIds);
+        model.addAttribute("totalCount", products.size());
+
+        return "product-management";
     }
 
     /**
@@ -71,14 +130,55 @@ public class ViewController {
         // 저장된 날짜 목록 조회
         List<LocalDate> availableDates = productDataService.getAvailableDates();
 
+        // 선택된 상품 ID 목록 조회
+        java.util.Set<Long> favoriteProductIds = favoriteProductService.getFavoriteProductIds();
+
+        // 선택된 상품의 displayOrder 맵 생성 (Product ID -> displayOrder)
+        Map<Long, Integer> displayOrderMap = new HashMap<>();
+        List<gunnu.coupang.entity.FavoriteProduct> favoriteProductsList =
+                favoriteProductService.getFavoritesOrderedByDisplayOrder();
+        for (gunnu.coupang.entity.FavoriteProduct fav : favoriteProductsList) {
+            if (fav.getDisplayOrder() != null) {
+                displayOrderMap.put(fav.getProduct().getId(), fav.getDisplayOrder());
+            }
+        }
+
+        // 선택된 상품만 필터링
+        List<SavedProductData> favoriteAllProducts = allNonAdProducts.stream()
+                .filter(p -> favoriteProductIds.contains(p.getId()))
+                .collect(Collectors.toList());
+        List<SavedProductData> favoriteIptimeProducts = iptimeProducts.stream()
+                .filter(p -> favoriteProductIds.contains(p.getId()))
+                .collect(Collectors.toList());
+        List<SavedProductData> favoriteTplinkProducts = tplinkProducts.stream()
+                .filter(p -> favoriteProductIds.contains(p.getId()))
+                .collect(Collectors.toList());
+        List<SavedProductData> favoriteNetisProducts = netisProducts.stream()
+                .filter(p -> favoriteProductIds.contains(p.getId()))
+                .collect(Collectors.toList());
+        List<SavedProductData> favoriteMercusysProducts = mercusysProducts.stream()
+                .filter(p -> favoriteProductIds.contains(p.getId()))
+                .collect(Collectors.toList());
+        List<SavedProductData> favoriteAsusProducts = asusProducts.stream()
+                .filter(p -> favoriteProductIds.contains(p.getId()))
+                .collect(Collectors.toList());
+
         model.addAttribute("iptimeProducts", iptimeProducts);
         model.addAttribute("tplinkProducts", tplinkProducts);
         model.addAttribute("netisProducts", netisProducts);
         model.addAttribute("mercusysProducts", mercusysProducts);
         model.addAttribute("asusProducts", asusProducts);
         model.addAttribute("allNonAdProducts", allNonAdProducts);
+        model.addAttribute("favoriteAllProducts", favoriteAllProducts);
+        model.addAttribute("favoriteIptimeProducts", favoriteIptimeProducts);
+        model.addAttribute("favoriteTplinkProducts", favoriteTplinkProducts);
+        model.addAttribute("favoriteNetisProducts", favoriteNetisProducts);
+        model.addAttribute("favoriteMercusysProducts", favoriteMercusysProducts);
+        model.addAttribute("favoriteAsusProducts", favoriteAsusProducts);
         model.addAttribute("availableDates", availableDates);
         model.addAttribute("selectedDate", selectedDate != null ? selectedDate : LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+        model.addAttribute("favoriteProductIds", favoriteProductIds);
+        model.addAttribute("displayOrderMap", displayOrderMap);
 
         int totalCount = iptimeProducts.size() + tplinkProducts.size() + netisProducts.size()
                 + mercusysProducts.size() + asusProducts.size();

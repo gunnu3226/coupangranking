@@ -48,10 +48,19 @@ public class ProductDataService {
 
         for (ProductInfo productInfo : products) {
             try {
+                // itemId와 productId가 없으면 스킵
+                if (productInfo.getItemId() == null || productInfo.getProductId() == null) {
+                    log.warn("itemId 또는 productId가 없어서 스킵: {}", productInfo.getProductName());
+                    continue;
+                }
+
                 // 1. Product 조회 또는 생성
-                Product product = productRepository.findByProductId(productInfo.getProductId())
+                Product product = productRepository.findByItemIdAndProductId(
+                        productInfo.getItemId(),
+                        productInfo.getProductId())
                         .orElseGet(() -> {
-                            log.debug("새로운 상품 생성: {}", productInfo.getProductId());
+                            log.debug("새로운 상품 생성: itemId={}, productId={}",
+                                    productInfo.getItemId(), productInfo.getProductId());
 
                             // 회사 판별
                             Company company = determineCompany(productInfo.getProductName());
@@ -59,6 +68,7 @@ public class ProductDataService {
                             Category category = Category.ROUTER;
 
                             Product newProduct = Product.builder()
+                                    .itemId(productInfo.getItemId())
                                     .productId(productInfo.getProductId())
                                     .productName(productInfo.getProductName())
                                     .company(company)
@@ -116,10 +126,14 @@ public class ProductDataService {
                 // 댓글 수에서 괄호 제거
                 dailyData.setReviewCount(removeParentheses(productInfo.getReviewCount()));
 
+                // 상품 URL 저장
+                dailyData.setProductUrl(productInfo.getProductUrl());
+
                 productDailyDataRepository.save(dailyData);
 
             } catch (Exception e) {
-                log.error("상품 데이터 저장 실패: {}", productInfo.getProductId(), e);
+                log.error("상품 데이터 저장 실패: itemId={}, productId={}",
+                        productInfo.getItemId(), productInfo.getProductId(), e);
             }
         }
 
@@ -184,11 +198,15 @@ public class ProductDataService {
 
         return dailyDataList.stream()
                 .filter(data -> data.getDate().equals(targetDate))
+                .filter(data -> data.getProduct() != null)
                 .filter(data -> data.getProduct().getCategory() == category)
                 .filter(data -> data.getProduct().getCompany() == company)
                 .map(data -> SavedProductData.builder()
+                        .id(data.getProduct().getId())
+                        .itemId(data.getProduct().getItemId())
                         .productId(data.getProduct().getProductId())
                         .productName(data.getProduct().getProductName())
+                        .productUrl(data.getProductUrl())
                         .date(data.getDate())
                         .ranking(data.getRanking())
                         .currentPrice(data.getCurrentPrice())
@@ -223,6 +241,33 @@ public class ProductDataService {
     }
 
     /**
+     * 전체 상품 목록 조회 (날짜 무관)
+     */
+    @Transactional(readOnly = true)
+    public List<Product> getAllProducts() {
+        log.info("전체 상품 목록 조회");
+        return productRepository.findAll();
+    }
+
+    /**
+     * 카테고리별 전체 상품 목록 조회
+     */
+    @Transactional(readOnly = true)
+    public List<Product> getProductsByCategory(Category category) {
+        log.info("카테고리별 상품 목록 조회 - 카테고리: {}", category);
+        return productRepository.findAll().stream()
+                .filter(product -> product.getCategory() == category)
+                .sorted((a, b) -> {
+                    // 회사별로 정렬
+                    if (a.getCompany() != null && b.getCompany() != null) {
+                        return a.getCompany().compareTo(b.getCompany());
+                    }
+                    return 0;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 광고를 제외한 전체 상품 조회 (회사 구분 없이)
      */
     @Transactional(readOnly = true)
@@ -234,11 +279,15 @@ public class ProductDataService {
 
         return dailyDataList.stream()
                 .filter(data -> data.getDate().equals(targetDate))
+                .filter(data -> data.getProduct() != null)
                 .filter(data -> data.getProduct().getCategory() == category)
                 .filter(data -> !data.getIsAd()) // 광고 제외
                 .map(data -> SavedProductData.builder()
+                        .id(data.getProduct().getId())
+                        .itemId(data.getProduct().getItemId())
                         .productId(data.getProduct().getProductId())
                         .productName(data.getProduct().getProductName())
+                        .productUrl(data.getProductUrl())
                         .date(data.getDate())
                         .ranking(data.getRanking())
                         .currentPrice(data.getCurrentPrice())

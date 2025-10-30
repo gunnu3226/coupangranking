@@ -12,7 +12,9 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class ProductInfo {
-    private String productId;           // data-id 속성
+    private String itemId;              // URL의 itemId 파라미터
+    private String productId;           // URL의 productId 파라미터
+    private String vendorItemId;        // data-id 속성 (vendorItemId)
     private String productName;         // 상품명
     private String productUrl;          // 상품 링크
     private String imageUrl;            // 이미지 URL

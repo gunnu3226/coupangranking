@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>선택 상품 순서 편집</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .back-button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            margin: 0 0 10px 0;
+            color: #667eea;
+        }
+
+        .product-list {
+            margin-bottom: 30px;
+        }
+
+        .product-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s;
+        }
+
+        .product-item:hover {
+            background: #e8f4ff;
+            border-color: #667eea;
+        }
+
+        .product-item.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .drag-handle {
+            cursor: grab;
+            font-size: 1.5rem;
+            margin-right: 15px;
+            color: #999;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .order-number {
+            width: 60px;
+            padding: 8px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #667eea;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            margin-right: 15px;
+        }
+
+        .product-info {
+            flex: 1;
+        }
+
+        .product-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .product-meta {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .save-button {
+            flex: 1;
+            padding: 15px 30px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .save-button:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .reset-button {
+            padding: 15px 30px;
+            background: #999;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .reset-button:hover {
+            background: #777;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/product-management" class="back-button">← 돌아가기</a>
+
+    <h1>📝 선택 상품 순서 편집</h1>
+
+    <div class="info-box">
+        <h3>순서 편집 방법</h3>
+        <p style="margin: 5px 0; color: #666;">
+            드래그 앤 드롭으로 상품의 순서를 변경할 수 있습니다. 순서를 변경한 후 저장 버튼을 클릭하세요.
+        </p>
+    </div>
+
+    <div class="product-list" id="productList" th:if="${favoriteProducts != null and !favoriteProducts.isEmpty()}">
+        <div class="product-item"
+             th:each="favorite, iterStat : ${favoriteProducts}"
+             th:data-product-id="${favorite.product.id}"
+             draggable="true">
+            <div class="drag-handle">☰</div>
+            <div class="order-number" th:text="${iterStat.index + 1}">1</div>
+            <div class="product-info">
+                <div class="product-name" th:text="${favorite.product.productName}">상품명</div>
+                <div class="product-meta">
+                    <span th:text="'itemId: ' + ${favorite.product.itemId}">itemId</span> |
+                    <span th:text="${favorite.product.company}">회사</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="empty-state" th:if="${favoriteProducts == null or favoriteProducts.isEmpty()}">
+        <p>선택한 상품이 없습니다.</p>
+        <p style="margin-top: 10px;">먼저 상품 데이터 관리에서 상품을 선택해주세요.</p>
+    </div>
+
+    <div class="button-group" th:if="${favoriteProducts != null and !favoriteProducts.isEmpty()}">
+        <button class="reset-button" onclick="resetOrder()">순서 초기화</button>
+        <button class="save-button" onclick="saveOrder()">💾 순서 저장</button>
+    </div>
+</div>
+
+<script>
+    let draggedElement = null;
+
+    // 드래그 시작
+    document.addEventListener('DOMContentLoaded', function() {
+        const productItems = document.querySelectorAll('.product-item');
+
+        productItems.forEach(item => {
+            item.addEventListener('dragstart', function(e) {
+                draggedElement = this;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            item.addEventListener('dragend', function() {
+                this.classList.remove('dragging');
+                updateOrderNumbers();
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                const afterElement = getDragAfterElement(document.getElementById('productList'), e.clientY);
+                const dragging = document.querySelector('.dragging');
+                if (afterElement == null) {
+                    document.getElementById('productList').appendChild(dragging);
+                } else {
+                    document.getElementById('productList').insertBefore(dragging, afterElement);
+                }
+            });
+        });
+    });
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('.product-item:not(.dragging)')];
+
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // 순서 번호 업데이트
+    function updateOrderNumbers() {
+        const productItems = document.querySelectorAll('.product-item');
+        productItems.forEach((item, index) => {
+            const orderNumber = item.querySelector('.order-number');
+            orderNumber.textContent = index + 1;
+        });
+    }
+
+    // 순서 저장
+    async function saveOrder() {
+        const productItems = document.querySelectorAll('.product-item');
+        const orderMap = {};
+
+        productItems.forEach((item, index) => {
+            const productId = parseInt(item.getAttribute('data-product-id'));
+            orderMap[productId] = index + 1;
+        });
+
+        if (Object.keys(orderMap).length === 0) {
+            alert('저장할 상품이 없습니다.');
+            return;
+        }
+
+        if (!confirm(`${Object.keys(orderMap).length}개 상품의 순서를 저장하시겠습니까?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/favorites/order', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ orderMap: orderMap })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('순서가 저장되었습니다.');
+                window.location.href = '/product-management';
+            } else {
+                alert('저장에 실패했습니다: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('저장 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 순서 초기화
+    function resetOrder() {
+        if (confirm('순서를 처음 상태로 초기화하시겠습니까?')) {
+            location.reload();
+        }
+    }
+</script>
+</body>
+</html>
