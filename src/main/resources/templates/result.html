@@ -518,6 +518,7 @@
                         <th>상품 ID</th>
                         <th>상품명</th>
                         <th>타입</th>
+                        <th>판매방법</th>
                         <th>원가</th>
                         <th>할인율</th>
                         <th>현재가</th>
@@ -540,6 +541,7 @@
                             <span th:if="${product.ranking == null and product.ad}" style="color: #ff6b6b; font-weight: 600;">광고</span>
                             <span th:if="${product.ranking == null and !product.ad}" style="color: #999;">일반</span>
                         </td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : '-'}">-</td>
                         <td>
                             <span class="table-original-price" th:if="${product.originalPrice != null}"
                                   th:text="${product.originalPrice}">-</span>
@@ -576,6 +578,7 @@
                         <th>순위</th>
                         <th>상품 ID</th>
                         <th>상품명</th>
+                        <th>판매방법</th>
                         <th>원가</th>
                         <th>할인율</th>
                         <th>현재가</th>
@@ -593,6 +596,7 @@
                                 상품명
                             </div>
                         </td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : '-'}">-</td>
                         <td>
                             <span class="table-original-price" th:if="${product.originalPrice != null}"
                                   th:text="${product.originalPrice}">-</span>

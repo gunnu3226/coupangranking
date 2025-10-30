@@ -11,4 +11,5 @@ import java.util.Optional;
 @Repository
 public interface ProductDailyDataRepository extends JpaRepository<ProductDailyData, Long> {
     Optional<ProductDailyData> findByProductAndDate(Product product, LocalDate date);
+    Optional<ProductDailyData> findByProductAndDateAndDisplayPosition(Product product, LocalDate date, Integer displayPosition);
 }

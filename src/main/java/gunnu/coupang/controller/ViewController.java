@@ -188,6 +188,65 @@ public class ViewController {
     }
 
     /**
+     * 당일 저장된 데이터를 파싱 결과 형식으로 보기
+     */
+    @GetMapping("/today-result")
+    public String todayResult(Model model) {
+        try {
+            LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+            log.info("당일 데이터 조회 - 날짜: {}", today);
+
+            // 당일 저장된 모든 ProductDailyData를 ProductInfo로 변환
+            List<ProductInfo> allProducts = productDataService.getTodayProductsAsProductInfo(today);
+
+            if (allProducts.isEmpty()) {
+                model.addAttribute("success", false);
+                model.addAttribute("message", "오늘 저장된 데이터가 없습니다.");
+                return "result";
+            }
+
+            // 상품명 기준으로 정렬: 티피링크 -> ipTIME -> 나머지
+            List<ProductInfo> sortedProducts = sortProductsByBrand(allProducts);
+
+            // 브랜드별 분리
+            List<ProductInfo> tpLinkProducts = filterByBrand(allProducts, "tplink");
+            List<ProductInfo> ipTimeProducts = filterByBrand(allProducts, "iptime");
+
+            // 타입별 분리
+            List<ProductInfo> rankedProducts = allProducts.stream()
+                    .filter(p -> p.getRanking() != null)
+                    .collect(Collectors.toList());
+            List<ProductInfo> adProducts = allProducts.stream()
+                    .filter(ProductInfo::isAd)
+                    .collect(Collectors.toList());
+            List<ProductInfo> normalProducts = allProducts.stream()
+                    .filter(p -> p.getRanking() == null && !p.isAd())
+                    .collect(Collectors.toList());
+
+            model.addAttribute("success", true);
+            model.addAttribute("allProducts", sortedProducts);
+            model.addAttribute("tpLinkProducts", tpLinkProducts);
+            model.addAttribute("ipTimeProducts", ipTimeProducts);
+            model.addAttribute("rankedProducts", rankedProducts);
+            model.addAttribute("adProducts", adProducts);
+            model.addAttribute("normalProducts", normalProducts);
+            model.addAttribute("totalCount", allProducts.size());
+            model.addAttribute("rankedCount", rankedProducts.size());
+            model.addAttribute("adCount", adProducts.size());
+            model.addAttribute("normalCount", normalProducts.size());
+            model.addAttribute("message", "오늘 저장된 총 " + allProducts.size() + "개의 상품 데이터를 표시합니다.");
+            model.addAttribute("isToday", true);  // 오늘 데이터임을 표시
+
+            return "result";
+        } catch (Exception e) {
+            log.error("당일 데이터 조회 중 오류 발생", e);
+            model.addAttribute("success", false);
+            model.addAttribute("message", "오류 발생: " + e.getMessage());
+            return "result";
+        }
+    }
+
+    /**
      * HTML 파싱 결과 페이지 (여러 페이지 텍스트 입력)
      */
     @PostMapping(value = "/parse", consumes = "application/json")

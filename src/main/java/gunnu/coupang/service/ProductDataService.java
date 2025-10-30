@@ -88,20 +88,15 @@ public class ProductDataService {
                     updatedCount++;
                 }
 
-                // 3. ProductDailyData 조회 또는 생성
-                ProductDailyData dailyData = productDailyDataRepository
-                        .findByProductAndDate(product, today)
-                        .orElseGet(() -> {
-                            log.debug("새로운 일일 데이터 생성: {} - {}", productInfo.getProductId(), today);
-                            return ProductDailyData.builder()
-                                    .product(product)
-                                    .date(today)
-                                    .build();
-                        });
+                // 3. ProductDailyData 생성 (중복도 모두 저장)
+                // 같은 상품이 광고와 순위 양쪽에 있는 경우를 위해 항상 새로운 레코드 생성
+                ProductDailyData dailyData = ProductDailyData.builder()
+                        .product(product)
+                        .date(today)
+                        .displayPosition(productInfo.getDisplayPosition())
+                        .build();
 
-                if (dailyData.getId() == null) {
-                    newDailyDataCount++;
-                }
+                newDailyDataCount++;
 
                 // 4. 일일 데이터 업데이트
                 // display_ranking: 원본 ranking 값 저장
@@ -116,6 +111,7 @@ public class ProductDataService {
                 }
 
                 dailyData.setIsAd(productInfo.isAd());
+                dailyData.setDeliveryMethod(productInfo.getDeliveryMethod());
 
                 // 가격에서 "원" 제거
                 dailyData.setCurrentPrice(removeWon(productInfo.getCurrentPrice()));
@@ -212,6 +208,7 @@ public class ProductDataService {
                         .currentPrice(data.getCurrentPrice())
                         .reviewCount(data.getReviewCount())
                         .isAd(data.getIsAd())
+                        .deliveryMethod(data.getDeliveryMethod())
                         .build())
                 .sorted((a, b) -> {
                     // ranking이 있는 것 우선 정렬
@@ -299,6 +296,7 @@ public class ProductDataService {
                         .currentPrice(data.getCurrentPrice())
                         .reviewCount(data.getReviewCount())
                         .isAd(data.getIsAd())
+                        .deliveryMethod(data.getDeliveryMethod())
                         .build())
                 .sorted((a, b) -> {
                     // ranking으로 정렬
@@ -308,6 +306,44 @@ public class ProductDataService {
                         return -1;
                     } else if (b.getRanking() != null) {
                         return 1;
+                    }
+                    return 0;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 특정 날짜의 저장된 데이터를 ProductInfo 형식으로 조회
+     */
+    @Transactional(readOnly = true)
+    public List<ProductInfo> getTodayProductsAsProductInfo(LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
+        log.info("저장된 데이터를 ProductInfo 형식으로 조회 - 날짜: {}", targetDate);
+
+        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll();
+
+        return dailyDataList.stream()
+                .filter(data -> data.getDate().equals(targetDate))
+                .filter(data -> data.getProduct() != null)
+                .map(data -> ProductInfo.builder()
+                        .itemId(data.getProduct().getItemId())
+                        .productId(data.getProduct().getProductId())
+                        .productName(data.getProduct().getProductName())
+                        .productUrl(data.getProductUrl())
+                        .currentPrice(data.getCurrentPrice() != null ? data.getCurrentPrice() + "원" : null)
+                        .originalPrice(data.getOriginalPrice() != null ? data.getOriginalPrice() + "원" : null)
+                        .discountRate(data.getDiscountRate())
+                        .rating(data.getRating())
+                        .reviewCount(data.getReviewCount() != null ? "(" + data.getReviewCount() + ")" : null)
+                        .isAd(data.getIsAd())
+                        .ranking(data.getDisplay_ranking())
+                        .displayPosition(data.getDisplayPosition())
+                        .deliveryMethod(data.getDeliveryMethod())
+                        .build())
+                .sorted((a, b) -> {
+                    // displayPosition으로 정렬 (HTML 순서 유지)
+                    if (a.getDisplayPosition() != null && b.getDisplayPosition() != null) {
+                        return a.getDisplayPosition().compareTo(b.getDisplayPosition());
                     }
                     return 0;
                 })

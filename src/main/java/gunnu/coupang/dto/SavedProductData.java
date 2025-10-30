@@ -1,5 +1,6 @@
 package gunnu.coupang.dto;
 
+import gunnu.coupang.entity.DeliveryMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,4 +23,5 @@ public class SavedProductData {
     private String currentPrice;
     private String reviewCount;
     private boolean isAd;
+    private DeliveryMethod deliveryMethod;
 }

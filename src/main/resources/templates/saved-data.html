@@ -33,6 +33,12 @@
             font-size: 2.5rem;
         }
 
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
         .back-button {
             display: inline-block;
             padding: 12px 24px;
@@ -40,13 +46,32 @@
             color: white;
             text-decoration: none;
             border-radius: 8px;
-            margin-bottom: 30px;
             font-weight: 600;
             transition: all 0.3s;
+            border: none;
+            cursor: pointer;
         }
 
         .back-button:hover {
             background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .today-result-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #10b981;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .today-result-button:hover {
+            background: #059669;
             transform: translateY(-2px);
         }
 
@@ -160,10 +185,11 @@
 
         th:nth-child(1) { width: 5%; text-align: center; }
         th:nth-child(2) { width: 10%; text-align: left; }
-        th:nth-child(3) { width: 40%; text-align: left; }
-        th:nth-child(4) { width: 10%; text-align: center; }
-        th:nth-child(5) { width: 20%; text-align: right; }
-        th:nth-child(6) { width: 15%; text-align: right; }
+        th:nth-child(3) { width: 35%; text-align: left; }
+        th:nth-child(4) { width: 8%; text-align: center; }
+        th:nth-child(5) { width: 10%; text-align: center; }
+        th:nth-child(6) { width: 17%; text-align: right; }
+        th:nth-child(7) { width: 15%; text-align: right; }
 
         tbody tr {
             border-bottom: 1px solid #e0e0e0;
@@ -183,10 +209,11 @@
 
         td:nth-child(1) { width: 5%; text-align: center; }
         td:nth-child(2) { width: 10%; }
-        td:nth-child(3) { width: 40%; }
-        td:nth-child(4) { width: 10%; text-align: center; }
-        td:nth-child(5) { width: 20%; text-align: right; }
-        td:nth-child(6) { width: 15%; text-align: right; }
+        td:nth-child(3) { width: 35%; }
+        td:nth-child(4) { width: 8%; text-align: center; }
+        td:nth-child(5) { width: 10%; text-align: center; }
+        td:nth-child(6) { width: 17%; text-align: right; }
+        td:nth-child(7) { width: 15%; text-align: right; }
 
         .empty-state {
             text-align: center;
@@ -250,7 +277,10 @@
 </head>
 <body>
 <div class="container">
-    <a href="/" class="back-button">← 돌아가기</a>
+    <div class="button-group">
+        <a href="/today-result" class="today-result-button">📋 당일 파싱 결과 보기</a>
+        <a href="/" class="back-button">← 돌아가기</a>
+    </div>
 
     <h1>📊 저장된 데이터</h1>
 
@@ -331,6 +361,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -348,6 +379,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -373,6 +405,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -390,6 +423,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -415,6 +449,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -432,6 +467,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -457,6 +493,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -474,6 +511,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -499,6 +537,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -516,6 +555,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -541,6 +581,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -558,6 +599,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -606,6 +648,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -624,6 +667,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -649,6 +693,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -667,6 +712,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>
@@ -692,6 +738,7 @@
                         <th>itemId</th>
                         <th>상품명</th>
                         <th>노출순위</th>
+                        <th>판매방법</th>
                         <th>판가</th>
                         <th>댓글수</th>
                     </tr>
@@ -710,6 +757,7 @@
                             </a>
                         </td>
                         <td th:text="${product.ranking != null ? product.ranking : ''}"></td>
+                        <td th:text="${product.deliveryMethod != null ? (product.deliveryMethod.name() == 'ROCKET_DELIVERY' ? '로켓배송' : (product.deliveryMethod.name() == 'ROCKET_MERCHANT' ? '판매자로켓' : '일반배송')) : ''}"></td>
                         <td th:text="${product.currentPrice}">가격</td>
                         <td th:text="${product.reviewCount != null ? product.reviewCount : ''}"></td>
                     </tr>

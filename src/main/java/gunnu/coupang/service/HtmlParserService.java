@@ -2,6 +2,7 @@ package gunnu.coupang.service;
 
 import gunnu.coupang.dto.ProductInfo;
 import gunnu.coupang.dto.ProductListResponse;
+import gunnu.coupang.entity.DeliveryMethod;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -151,9 +152,14 @@ public class HtmlParserService {
             List<ProductInfo> adProducts = new ArrayList<>();
             List<ProductInfo> normalProducts = new ArrayList<>();
 
+            int displayPosition = 1;  // HTML에서의 실제 위치 (1부터 시작)
+
             for (Element item : productItems) {
                 try {
                     ProductInfo productInfo = parseProductItem(item);
+                    productInfo.setDisplayPosition(displayPosition);  // displayPosition 설정
+                    displayPosition++;
+
                     allProducts.add(productInfo);
 
                     // 상품 분류
@@ -171,6 +177,7 @@ public class HtmlParserService {
                     }
                 } catch (Exception e) {
                     log.warn("상품 파싱 실패: {}", e.getMessage());
+                    displayPosition++;  // 실패한 상품도 위치는 증가
                     // 개별 상품 파싱 실패 시 스킵하고 계속 진행
                 }
             }
@@ -269,8 +276,10 @@ public class HtmlParserService {
             }
         }
 
-        // 6. 배송 정보
+        // 6. 배송 정보 및 판매방법
         Elements deliveryElements = item.select("div.fw-text-\\[14px\\] > div");
+        DeliveryMethod deliveryMethod = DeliveryMethod.NORMAL_DELIVERY; // 기본값: 일반배송
+
         if (deliveryElements.size() > 0) {
             // 배송 도착일
             Element deliveryDateElement = deliveryElements.get(0);
@@ -281,6 +290,21 @@ public class HtmlParserService {
                 // 로켓 배송 확인
                 Element rocketBadge = deliveryDateElement.selectFirst("img[alt*=rocket]");
                 builder.rocketDelivery(rocketBadge != null ? "Y" : "N");
+
+                // 판매방법 판별
+                Element rocketMerchantImg = deliveryDateElement.selectFirst("img[src*=logoRocketMerchantLargeV3R3]");
+                Element rocketDeliveryImg = deliveryDateElement.selectFirst("img[src*=logo_rocket_large]");
+
+                if (rocketMerchantImg != null) {
+                    deliveryMethod = DeliveryMethod.ROCKET_MERCHANT;
+                    log.debug("판매방법: 판매자로켓");
+                } else if (rocketDeliveryImg != null) {
+                    deliveryMethod = DeliveryMethod.ROCKET_DELIVERY;
+                    log.debug("판매방법: 로켓배송");
+                } else {
+                    deliveryMethod = DeliveryMethod.NORMAL_DELIVERY;
+                    log.debug("판매방법: 일반배송");
+                }
             }
 
             // 배송비
@@ -291,6 +315,8 @@ public class HtmlParserService {
                 }
             }
         }
+
+        builder.deliveryMethod(deliveryMethod);
 
         // 7. 평점 및 리뷰 수
         Element ratingElement = item.selectFirst("div.ProductRating_productRating__jjf7W");

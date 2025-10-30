@@ -1,5 +1,6 @@
 package gunnu.coupang.dto;
 
+import gunnu.coupang.entity.DeliveryMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -30,4 +31,6 @@ public class ProductInfo {
     private boolean isAd;               // 광고 상품 여부
     private String rocketDelivery;      // 로켓 배송 여부
     private Integer ranking;            // 랭킹 (1, 2, 3... 없으면 null)
+    private Integer displayPosition;    // HTML에서의 실제 위치 (1부터 시작)
+    private DeliveryMethod deliveryMethod;  // 판매방법 (로켓배송, 판매자로켓, 일반배송)
 }

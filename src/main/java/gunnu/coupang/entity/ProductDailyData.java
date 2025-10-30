@@ -7,8 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "product_daily_data",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"product_id", "date"}))
+@Table(name = "product_daily_data")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,6 +26,9 @@ public class ProductDailyData {
     @Column(name = "date", nullable = false)
     private LocalDate date;
 
+    @Column(name = "display_position")
+    private Integer displayPosition;
+
     @Column(name = "display_ranking")
     private Integer display_ranking;
 
@@ -35,6 +37,10 @@ public class ProductDailyData {
 
     @Column(name = "is_ad")
     private Boolean isAd;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_method")
+    private DeliveryMethod deliveryMethod;
 
     @Column(name = "current_price")
     private String currentPrice;
