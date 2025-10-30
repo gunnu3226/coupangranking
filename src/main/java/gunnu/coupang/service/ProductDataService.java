@@ -258,11 +258,17 @@ public class ProductDataService {
         return productRepository.findAll().stream()
                 .filter(product -> product.getCategory() == category)
                 .sorted((a, b) -> {
-                    // 회사별로 정렬
-                    if (a.getCompany() != null && b.getCompany() != null) {
-                        return a.getCompany().compareTo(b.getCompany());
+                    // 회사별로 정렬 (null은 마지막으로)
+                    if (a.getCompany() == null && b.getCompany() == null) {
+                        return 0;
                     }
-                    return 0;
+                    if (a.getCompany() == null) {
+                        return 1; // null은 뒤로
+                    }
+                    if (b.getCompany() == null) {
+                        return -1; // null은 뒤로
+                    }
+                    return a.getCompany().compareTo(b.getCompany());
                 })
                 .collect(Collectors.toList());
     }
