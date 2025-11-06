@@ -36,13 +36,15 @@ public class FavoriteProductService {
         favoriteProductRepository.deleteAll();
         log.info("기존 선택 항목 삭제 완료");
 
-        // 새로운 선택 항목 저장
+        // 새로운 선택 항목 저장 (순서대로 displayOrder 할당)
+        int displayOrder = 1;
         for (Long productId : productIds) {
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new IllegalArgumentException("상품을 찾을 수 없습니다: " + productId));
 
             FavoriteProduct favorite = FavoriteProduct.builder()
                     .product(product)
+                    .displayOrder(displayOrder++)
                     .build();
 
             favoriteProductRepository.save(favorite);

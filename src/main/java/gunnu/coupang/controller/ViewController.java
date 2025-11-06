@@ -143,24 +143,24 @@ public class ViewController {
             }
         }
 
-        // 선택된 상품만 필터링
-        List<SavedProductData> favoriteAllProducts = allNonAdProducts.stream()
-                .filter(p -> favoriteProductIds.contains(p.getId()))
+        // 선택된 상품 데이터 조회 (데이터가 없는 상품도 포함)
+        List<SavedProductData> favoriteAllProducts = productDataService.getFavoriteProductsWithData(favoriteProductIds, selectedDate);
+
+        // 회사별로 필터링
+        List<SavedProductData> favoriteIptimeProducts = favoriteAllProducts.stream()
+                .filter(p -> p.getCompany() == Company.IPTIME)
                 .collect(Collectors.toList());
-        List<SavedProductData> favoriteIptimeProducts = iptimeProducts.stream()
-                .filter(p -> favoriteProductIds.contains(p.getId()))
+        List<SavedProductData> favoriteTplinkProducts = favoriteAllProducts.stream()
+                .filter(p -> p.getCompany() == Company.TPLINK)
                 .collect(Collectors.toList());
-        List<SavedProductData> favoriteTplinkProducts = tplinkProducts.stream()
-                .filter(p -> favoriteProductIds.contains(p.getId()))
+        List<SavedProductData> favoriteNetisProducts = favoriteAllProducts.stream()
+                .filter(p -> p.getCompany() == Company.NETIS)
                 .collect(Collectors.toList());
-        List<SavedProductData> favoriteNetisProducts = netisProducts.stream()
-                .filter(p -> favoriteProductIds.contains(p.getId()))
+        List<SavedProductData> favoriteMercusysProducts = favoriteAllProducts.stream()
+                .filter(p -> p.getCompany() == Company.MERCUSYS)
                 .collect(Collectors.toList());
-        List<SavedProductData> favoriteMercusysProducts = mercusysProducts.stream()
-                .filter(p -> favoriteProductIds.contains(p.getId()))
-                .collect(Collectors.toList());
-        List<SavedProductData> favoriteAsusProducts = asusProducts.stream()
-                .filter(p -> favoriteProductIds.contains(p.getId()))
+        List<SavedProductData> favoriteAsusProducts = favoriteAllProducts.stream()
+                .filter(p -> p.getCompany() == Company.ASUS)
                 .collect(Collectors.toList());
 
         model.addAttribute("iptimeProducts", iptimeProducts);

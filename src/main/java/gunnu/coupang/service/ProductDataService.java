@@ -203,6 +203,7 @@ public class ProductDataService {
                         .productId(data.getProduct().getProductId())
                         .productName(data.getProduct().getProductName())
                         .productUrl(data.getProductUrl())
+                        .company(data.getProduct().getCompany())
                         .date(data.getDate())
                         .ranking(data.getRanking())
                         .currentPrice(data.getCurrentPrice())
@@ -291,6 +292,7 @@ public class ProductDataService {
                         .productId(data.getProduct().getProductId())
                         .productName(data.getProduct().getProductName())
                         .productUrl(data.getProductUrl())
+                        .company(data.getProduct().getCompany())
                         .date(data.getDate())
                         .ranking(data.getRanking())
                         .currentPrice(data.getCurrentPrice())
@@ -346,6 +348,76 @@ public class ProductDataService {
                         return a.getDisplayPosition().compareTo(b.getDisplayPosition());
                     }
                     return 0;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * favorite 상품들의 데이터 조회 (데이터가 없는 상품도 포함)
+     * @param favoriteProductIds favorite 상품 ID 목록
+     * @param date 조회할 날짜
+     * @return 상품 정보 리스트 (데이터가 없으면 Product 정보만 포함)
+     */
+    @Transactional(readOnly = true)
+    public List<SavedProductData> getFavoriteProductsWithData(java.util.Set<Long> favoriteProductIds, LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
+        log.info("favorite 상품 데이터 조회 - 날짜: {}, 상품 수: {}", targetDate, favoriteProductIds.size());
+
+        // favorite 상품들 조회
+        List<Product> favoriteProducts = productRepository.findAllById(favoriteProductIds);
+
+        // 해당 날짜의 ProductDailyData 조회
+        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll().stream()
+                .filter(data -> data.getDate().equals(targetDate))
+                .filter(data -> favoriteProductIds.contains(data.getProduct().getId()))
+                .collect(Collectors.toList());
+
+        // Product ID -> ProductDailyData 매핑
+        java.util.Map<Long, ProductDailyData> dailyDataMap = dailyDataList.stream()
+                .collect(Collectors.toMap(
+                        data -> data.getProduct().getId(),
+                        data -> data,
+                        (existing, replacement) -> existing // 중복 시 첫 번째 데이터 사용
+                ));
+
+        // 모든 favorite 상품에 대해 SavedProductData 생성
+        return favoriteProducts.stream()
+                .map(product -> {
+                    ProductDailyData dailyData = dailyDataMap.get(product.getId());
+
+                    if (dailyData != null) {
+                        // 데이터가 있는 경우
+                        return SavedProductData.builder()
+                                .id(product.getId())
+                                .itemId(product.getItemId())
+                                .productId(product.getProductId())
+                                .productName(product.getProductName())
+                                .productUrl(dailyData.getProductUrl())
+                                .company(product.getCompany())
+                                .date(dailyData.getDate())
+                                .ranking(dailyData.getRanking())
+                                .currentPrice(dailyData.getCurrentPrice())
+                                .reviewCount(dailyData.getReviewCount())
+                                .isAd(dailyData.getIsAd())
+                                .deliveryMethod(dailyData.getDeliveryMethod())
+                                .build();
+                    } else {
+                        // 데이터가 없는 경우 - Product 정보만 포함
+                        return SavedProductData.builder()
+                                .id(product.getId())
+                                .itemId(product.getItemId())
+                                .productId(product.getProductId())
+                                .productName(product.getProductName())
+                                .productUrl(null)
+                                .company(product.getCompany())
+                                .date(null)
+                                .ranking(null)
+                                .currentPrice(null)
+                                .reviewCount(null)
+                                .isAd(false)
+                                .deliveryMethod(null)
+                                .build();
+                    }
                 })
                 .collect(Collectors.toList());
     }

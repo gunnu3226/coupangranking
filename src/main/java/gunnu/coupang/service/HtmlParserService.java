@@ -292,13 +292,18 @@ public class HtmlParserService {
                 builder.rocketDelivery(rocketBadge != null ? "Y" : "N");
 
                 // 판매방법 판별
+                // 기존 로켓 배송 이미지
                 Element rocketMerchantImg = deliveryDateElement.selectFirst("img[src*=logoRocketMerchantLargeV3R3]");
                 Element rocketDeliveryImg = deliveryDateElement.selectFirst("img[src*=logo_rocket_large]");
 
-                if (rocketMerchantImg != null) {
+                // 새로운 배지 이미지 (badge_ext)
+                Element rocketDeliveryBadge = deliveryDateElement.selectFirst("img[src*=badge_1998ab96bf7]");
+                Element rocketMerchantBadge = deliveryDateElement.selectFirst("img[src*=badge_199559e56f7]");
+
+                if (rocketMerchantImg != null || rocketMerchantBadge != null) {
                     deliveryMethod = DeliveryMethod.ROCKET_MERCHANT;
                     log.debug("판매방법: 판매자로켓");
-                } else if (rocketDeliveryImg != null) {
+                } else if (rocketDeliveryImg != null || rocketDeliveryBadge != null) {
                     deliveryMethod = DeliveryMethod.ROCKET_DELIVERY;
                     log.debug("판매방법: 로켓배송");
                 } else {

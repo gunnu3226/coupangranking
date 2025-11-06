@@ -1,5 +1,6 @@
 package gunnu.coupang.dto;
 
+import gunnu.coupang.entity.Company;
 import gunnu.coupang.entity.DeliveryMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,7 @@ public class SavedProductData {
     private String productId;
     private String productName;
     private String productUrl;
+    private Company company;
     private LocalDate date;
     private Integer ranking;
     private String currentPrice;
