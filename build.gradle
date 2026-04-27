@@ -26,7 +26,6 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -47,4 +46,71 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+def frontendDir = file('FE')
+def frontendBuildDir = file('src/main/resources/static')
+def npmBinaryName = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+def resolveNpmExecutable = {
+    List<File> candidates = []
+    String explicitNpm = System.getenv('NPM_EXECUTABLE')
+    if (explicitNpm) {
+        candidates.add(file(explicitNpm))
+    }
+
+    String nvmBin = System.getenv('NVM_BIN')
+    if (nvmBin) {
+        candidates.add(file("${nvmBin}/${npmBinaryName}"))
+    }
+
+    String path = System.getenv('PATH') ?: ''
+    path.split(File.pathSeparator)
+            .findAll { it }
+            .each { candidates.add(file("${it}/${npmBinaryName}")) }
+
+    File nvmVersionsDir = file("${System.getProperty('user.home')}/.nvm/versions/node")
+    if (nvmVersionsDir.exists()) {
+        nvmVersionsDir.listFiles()
+                ?.findAll { it.isDirectory() }
+                ?.sort { a, b -> b.name <=> a.name }
+                ?.each { candidates.add(file("${it.absolutePath}/bin/${npmBinaryName}")) }
+    }
+
+    candidates.add(file("/opt/homebrew/bin/${npmBinaryName}"))
+    candidates.add(file("/usr/local/bin/${npmBinaryName}"))
+
+    File npmExecutable = candidates.find { it.exists() && it.canExecute() }
+    if (npmExecutable == null) {
+        throw new GradleException("npm executable not found. Install Node.js/npm or set NPM_EXECUTABLE=/absolute/path/to/npm.")
+    }
+    return npmExecutable.absolutePath
+}
+
+tasks.register('npmInstall', Exec) {
+    workingDir frontendDir
+    doFirst {
+        commandLine resolveNpmExecutable(), 'install'
+    }
+    inputs.file file('FE/package.json')
+    outputs.dir file('FE/node_modules')
+}
+
+tasks.register('npmBuild', Exec) {
+    dependsOn 'npmInstall'
+    workingDir frontendDir
+    doFirst {
+        commandLine resolveNpmExecutable(), 'run', 'build'
+    }
+    inputs.files file('FE/package.json'), file('FE/index.html'), file('FE/vite.config.js')
+    inputs.dir file('FE/src')
+    outputs.dir frontendBuildDir
+}
+
+tasks.named('processResources') {
+    dependsOn 'npmBuild'
+}
+
+tasks.named('clean') {
+    delete frontendBuildDir
 }

@@ -24,8 +24,8 @@ public class FavoriteProductController {
     public ResponseEntity<?> saveFavorites(@RequestBody Map<String, List<Long>> request) {
         try {
             List<Long> productIds = request.get("productIds");
-            if (productIds == null || productIds.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "선택한 상품이 없습니다."));
+            if (productIds == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "선택 상품 정보가 없습니다."));
             }
 
             favoriteProductService.saveFavorites(productIds);
