@@ -14,8 +14,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -190,38 +195,12 @@ public class ProductDataService {
         LocalDate targetDate = date != null ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
         log.info("저장된 데이터 조회 - 날짜: {}, 카테고리: {}, 회사: {}", targetDate, category, company);
 
-        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll();
+        List<ProductDailyData> dailyDataList = productDailyDataRepository
+                .findByDateAndProduct_CategoryAndProduct_Company(targetDate, category, company);
 
-        return dailyDataList.stream()
-                .filter(data -> data.getDate().equals(targetDate))
-                .filter(data -> data.getProduct() != null)
-                .filter(data -> data.getProduct().getCategory() == category)
-                .filter(data -> data.getProduct().getCompany() == company)
-                .map(data -> SavedProductData.builder()
-                        .id(data.getProduct().getId())
-                        .itemId(data.getProduct().getItemId())
-                        .productId(data.getProduct().getProductId())
-                        .productName(data.getProduct().getProductName())
-                        .productUrl(data.getProductUrl())
-                        .company(data.getProduct().getCompany())
-                        .date(data.getDate())
-                        .ranking(data.getRanking())
-                        .currentPrice(data.getCurrentPrice())
-                        .reviewCount(data.getReviewCount())
-                        .isAd(data.getIsAd())
-                        .deliveryMethod(data.getDeliveryMethod())
-                        .build())
-                .sorted((a, b) -> {
-                    // ranking이 있는 것 우선 정렬
-                    if (a.getRanking() != null && b.getRanking() != null) {
-                        return a.getRanking().compareTo(b.getRanking());
-                    } else if (a.getRanking() != null) {
-                        return -1;
-                    } else if (b.getRanking() != null) {
-                        return 1;
-                    }
-                    return 0;
-                })
+        return latestByItemIdAndAdState(dailyDataList).stream()
+                .map(this::toSavedProductData)
+                .sorted(savedProductRankingComparator())
                 .collect(Collectors.toList());
     }
 
@@ -230,12 +209,7 @@ public class ProductDataService {
      */
     @Transactional(readOnly = true)
     public List<LocalDate> getAvailableDates() {
-        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll();
-        return dailyDataList.stream()
-                .map(ProductDailyData::getDate)
-                .distinct()
-                .sorted((a, b) -> b.compareTo(a)) // 최신 날짜 우선
-                .collect(Collectors.toList());
+        return productDailyDataRepository.findDistinctDatesOrderByDateDesc();
     }
 
     /**
@@ -272,6 +246,23 @@ public class ProductDataService {
     }
 
     /**
+     * 광고 포함 전체 저장 상품 조회 (회사 구분 없이)
+     */
+    @Transactional(readOnly = true)
+    public List<SavedProductData> getAllSavedProductsByCategory(Category category, LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
+        log.info("전체 저장 데이터 조회 - 날짜: {}, 카테고리: {}", targetDate, category);
+
+        List<ProductDailyData> dailyDataList = productDailyDataRepository
+                .findByDateAndProduct_Category(targetDate, category);
+
+        return latestByItemIdAndAdState(dailyDataList).stream()
+                .map(this::toSavedProductData)
+                .sorted(savedProductRankingComparator())
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 광고를 제외한 전체 상품 조회 (회사 구분 없이)
      */
     @Transactional(readOnly = true)
@@ -279,38 +270,12 @@ public class ProductDataService {
         LocalDate targetDate = date != null ? date : LocalDate.now(ZoneId.of("Asia/Seoul"));
         log.info("광고 제외 전체 데이터 조회 - 날짜: {}, 카테고리: {}", targetDate, category);
 
-        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll();
+        List<ProductDailyData> dailyDataList = productDailyDataRepository
+                .findByDateAndProduct_CategoryAndIsAdFalse(targetDate, category);
 
-        return dailyDataList.stream()
-                .filter(data -> data.getDate().equals(targetDate))
-                .filter(data -> data.getProduct() != null)
-                .filter(data -> data.getProduct().getCategory() == category)
-                .filter(data -> !data.getIsAd()) // 광고 제외
-                .map(data -> SavedProductData.builder()
-                        .id(data.getProduct().getId())
-                        .itemId(data.getProduct().getItemId())
-                        .productId(data.getProduct().getProductId())
-                        .productName(data.getProduct().getProductName())
-                        .productUrl(data.getProductUrl())
-                        .company(data.getProduct().getCompany())
-                        .date(data.getDate())
-                        .ranking(data.getRanking())
-                        .currentPrice(data.getCurrentPrice())
-                        .reviewCount(data.getReviewCount())
-                        .isAd(data.getIsAd())
-                        .deliveryMethod(data.getDeliveryMethod())
-                        .build())
-                .sorted((a, b) -> {
-                    // ranking으로 정렬
-                    if (a.getRanking() != null && b.getRanking() != null) {
-                        return a.getRanking().compareTo(b.getRanking());
-                    } else if (a.getRanking() != null) {
-                        return -1;
-                    } else if (b.getRanking() != null) {
-                        return 1;
-                    }
-                    return 0;
-                })
+        return latestByItemId(dailyDataList).stream()
+                .map(this::toSavedProductData)
+                .sorted(savedProductRankingComparator())
                 .collect(Collectors.toList());
     }
 
@@ -366,44 +331,28 @@ public class ProductDataService {
         // favorite 상품들 조회
         List<Product> favoriteProducts = productRepository.findAllById(favoriteProductIds);
 
-        // 해당 날짜의 ProductDailyData 조회
-        List<ProductDailyData> dailyDataList = productDailyDataRepository.findAll().stream()
-                .filter(data -> data.getDate().equals(targetDate))
-                .filter(data -> favoriteProductIds.contains(data.getProduct().getId()))
-                .collect(Collectors.toList());
+        // 해당 날짜의 ProductDailyData 조회 (DB 조건 조회 + Product fetch)
+        List<ProductDailyData> dailyDataList = favoriteProductIds.isEmpty()
+                ? List.of()
+                : productDailyDataRepository.findByDateAndProduct_IdIn(targetDate, favoriteProductIds);
 
-        // Product ID -> ProductDailyData 매핑
-        java.util.Map<Long, ProductDailyData> dailyDataMap = dailyDataList.stream()
-                .collect(Collectors.toMap(
+        // Product ID -> 광고/일반 상태별 최신 ProductDailyData 매핑
+        // 같은 상품이 광고 영역과 일반 순위 영역에 동시에 노출될 수 있으므로 둘 다 유지한다.
+        Map<Long, List<ProductDailyData>> dailyDataMap = latestByProductIdAndAdState(dailyDataList).stream()
+                .collect(Collectors.groupingBy(
                         data -> data.getProduct().getId(),
-                        data -> data,
-                        (existing, replacement) -> existing // 중복 시 첫 번째 데이터 사용
+                        LinkedHashMap::new,
+                        Collectors.toList()
                 ));
 
         // 모든 favorite 상품에 대해 SavedProductData 생성
         return favoriteProducts.stream()
-                .map(product -> {
-                    ProductDailyData dailyData = dailyDataMap.get(product.getId());
+                .flatMap(product -> {
+                    List<ProductDailyData> dailyData = dailyDataMap.get(product.getId());
 
-                    if (dailyData != null) {
-                        // 데이터가 있는 경우
-                        return SavedProductData.builder()
-                                .id(product.getId())
-                                .itemId(product.getItemId())
-                                .productId(product.getProductId())
-                                .productName(product.getProductName())
-                                .productUrl(dailyData.getProductUrl())
-                                .company(product.getCompany())
-                                .date(dailyData.getDate())
-                                .ranking(dailyData.getRanking())
-                                .currentPrice(dailyData.getCurrentPrice())
-                                .reviewCount(dailyData.getReviewCount())
-                                .isAd(dailyData.getIsAd())
-                                .deliveryMethod(dailyData.getDeliveryMethod())
-                                .build();
-                    } else {
+                    if (dailyData == null || dailyData.isEmpty()) {
                         // 데이터가 없는 경우 - Product 정보만 포함
-                        return SavedProductData.builder()
+                        return java.util.stream.Stream.of(SavedProductData.builder()
                                 .id(product.getId())
                                 .itemId(product.getItemId())
                                 .productId(product.getProductId())
@@ -416,9 +365,124 @@ public class ProductDataService {
                                 .reviewCount(null)
                                 .isAd(false)
                                 .deliveryMethod(null)
-                                .build();
+                                .build());
                     }
+                    // 데이터가 있는 경우 - 광고/일반 상태별 최신 row를 모두 포함
+                    return dailyData.stream().map(this::toSavedProductData);
                 })
                 .collect(Collectors.toList());
     }
+
+    private List<ProductDailyData> latestByItemId(Collection<ProductDailyData> dailyDataList) {
+        Map<String, ProductDailyData> latestByItemId = new LinkedHashMap<>();
+        for (ProductDailyData data : dailyDataList) {
+            if (data == null || data.getProduct() == null) {
+                continue;
+            }
+            String key = data.getProduct().getItemId();
+            if (key == null) {
+                key = "product:" + data.getProduct().getId();
+            }
+            latestByItemId.merge(key, data, this::newerDailyData);
+        }
+        return List.copyOf(latestByItemId.values());
+    }
+
+    private List<ProductDailyData> latestByItemIdAndAdState(Collection<ProductDailyData> dailyDataList) {
+        Map<String, ProductDailyData> latestByItemIdAndAdState = new LinkedHashMap<>();
+        for (ProductDailyData data : dailyDataList) {
+            if (data == null || data.getProduct() == null) {
+                continue;
+            }
+            latestByItemIdAndAdState.merge(itemIdAndAdStateKey(data), data, this::newerDailyData);
+        }
+        return List.copyOf(latestByItemIdAndAdState.values());
+    }
+
+    private List<ProductDailyData> latestByProductIdAndAdState(Collection<ProductDailyData> dailyDataList) {
+        Map<String, ProductDailyData> latestByProductIdAndAdState = new LinkedHashMap<>();
+        for (ProductDailyData data : dailyDataList) {
+            if (data == null || data.getProduct() == null || data.getProduct().getId() == null) {
+                continue;
+            }
+            latestByProductIdAndAdState.merge(productIdAndAdStateKey(data), data, this::newerDailyData);
+        }
+        return List.copyOf(latestByProductIdAndAdState.values());
+    }
+
+    private String itemIdAndAdStateKey(ProductDailyData data) {
+        Product product = data.getProduct();
+        String itemKey = product.getItemId();
+        if (itemKey == null) {
+            itemKey = "product:" + product.getId();
+        }
+        return itemKey + "|ad:" + Boolean.TRUE.equals(data.getIsAd());
+    }
+
+    private String productIdAndAdStateKey(ProductDailyData data) {
+        return data.getProduct().getId() + "|ad:" + Boolean.TRUE.equals(data.getIsAd());
+    }
+
+    private ProductDailyData newerDailyData(ProductDailyData current, ProductDailyData candidate) {
+        return compareRecency(candidate, current) > 0 ? candidate : current;
+    }
+
+    private int compareRecency(ProductDailyData left, ProductDailyData right) {
+        int createdAtComparison = compareNullableCreatedAt(left.getCreatedAt(), right.getCreatedAt());
+        if (createdAtComparison != 0) {
+            return createdAtComparison;
+        }
+        return compareNullableLong(left.getId(), right.getId());
+    }
+
+    private int compareNullableCreatedAt(LocalDateTime left, LocalDateTime right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        return left.compareTo(right);
+    }
+
+    private int compareNullableLong(Long left, Long right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        return left.compareTo(right);
+    }
+
+    private SavedProductData toSavedProductData(ProductDailyData data) {
+        Product product = data.getProduct();
+        return SavedProductData.builder()
+                .id(product.getId())
+                .itemId(product.getItemId())
+                .productId(product.getProductId())
+                .productName(product.getProductName())
+                .productUrl(data.getProductUrl())
+                .company(product.getCompany())
+                .date(data.getDate())
+                .ranking(data.getRanking())
+                .currentPrice(data.getCurrentPrice())
+                .reviewCount(data.getReviewCount())
+                .isAd(Boolean.TRUE.equals(data.getIsAd()))
+                .deliveryMethod(data.getDeliveryMethod())
+                .build();
+    }
+
+    private Comparator<SavedProductData> savedProductRankingComparator() {
+        return Comparator
+                .comparing((SavedProductData data) -> data.getRanking() == null)
+                .thenComparing(SavedProductData::getRanking, Comparator.nullsLast(Integer::compareTo));
+    }
+
 }

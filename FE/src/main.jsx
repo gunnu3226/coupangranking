@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
@@ -37,7 +37,7 @@ function App() {
         </div>
         <nav className="top-nav">
           <NavButton path="/" currentPath={path} onClick={navigate}>HTML 입력</NavButton>
-          <NavButton path="/saved-data" currentPath={path} onClick={navigate}>저장 데이터</NavButton>
+          <NavButton path="/saved-data" currentPath={path} onClick={navigate}>저장 데이터 분석</NavButton>
           <NavButton path="/product-management" activePaths={["/product-management", "/favorite-order-edit"]} currentPath={path} onClick={navigate}>관심상품 관리</NavButton>
           <NavButton path="/today-result" currentPath={path} onClick={navigate}>오늘 결과</NavButton>
         </nav>
@@ -203,18 +203,23 @@ function ResultPage({ result, emptyMessage }) {
 
 function SavedDataPage() {
   const [date, setDate] = useState('');
-  const [tab, setTab] = useState('router');
+  const [view, setView] = useState('all');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
   const [sortMode, setSortMode] = useState('ranking');
   const url = date ? `/api/app/saved-data?date=${encodeURIComponent(date)}` : '/api/app/saved-data';
-  const { data, loading, error, reload } = useApi(url);
+  const { data, loading, error } = useApi(url);
 
   useEffect(() => {
     if (data?.selectedDate && !date) {
       setDate(data.selectedDate);
     }
   }, [data, date]);
+
+  useEffect(() => {
+    if (view !== 'favorites' && sortMode === 'custom') {
+      setSortMode('ranking');
+    }
+  }, [view, sortMode]);
 
 
   if (loading) return <Loading />;
@@ -223,16 +228,27 @@ function SavedDataPage() {
   const displayOrderMap = data?.displayOrderMap || {};
   const productsByCompany = data?.productsByCompany || {};
   const favoriteProductsByCompany = data?.favoriteProductsByCompany || {};
-  const currentProducts = tab === 'favorites' ? data?.favoriteAllProducts || [] : data?.allNonAdProducts || [];
-
-  const filteredCurrentProducts = applySavedFilters(currentProducts, search, filter, sortMode, displayOrderMap);
+  const allSavedProducts = data?.allSavedProducts || data?.allNonAdProducts || [];
+  const favoriteProducts = data?.favoriteAllProducts || [];
+  const activeFilter = view === 'ad' || view === 'normal' ? view : 'all';
+  const currentProducts = view === 'favorites' ? favoriteProducts : allSavedProducts;
+  const filteredCurrentProducts = applySavedFilters(currentProducts, search, activeFilter, sortMode, displayOrderMap);
+  const adCount = allSavedProducts.filter(isAd).length;
+  const normalCount = allSavedProducts.filter((product) => !isAd(product)).length;
+  const viewOptions = [
+    ['all', '전체', allSavedProducts.length, '저장된 전체 상품'],
+    ['ad', '광고', adCount, '광고 상품만 보기'],
+    ['normal', '일반', normalCount, '광고 제외 상품'],
+    ['favorites', '관심상품', favoriteProducts.length, '내가 선택한 상품']
+  ];
+  const activeViewLabel = viewOptions.find(([key]) => key === view)?.[1] || '전체';
 
   return (
-    <section className="panel">
+    <section className="panel saved-data-page">
       <div className="panel-header">
         <div>
-          <h2>저장 데이터</h2>
-          <p>선택 날짜의 상품 랭킹과 관심 상품 목록을 확인합니다.</p>
+          <h2>저장 데이터 분석</h2>
+          <p>날짜별 랭킹 데이터를 필터링하고 순위순으로 정렬해 엑셀에 바로 복사합니다.</p>
         </div>
         <div className="controls-row">
           <select value={date} onChange={(event) => setDate(event.target.value)}>
@@ -245,40 +261,53 @@ function SavedDataPage() {
 
       <StatsCards stats={[
         ['선택 날짜', data?.selectedDate || '-'],
-        ['회사별 상품', data?.totalCount || 0],
-        ['광고 제외 전체', data?.allNonAdProducts?.length || 0],
-        ['관심 상품', data?.favoriteAllProducts?.length || 0]
+        ['전체 저장 상품', allSavedProducts.length],
+        ['광고 상품', adCount],
+        ['현재 결과', filteredCurrentProducts.length],
+        ['관심 상품', favoriteProducts.length]
       ]} />
 
-      <div className="tabs">
-        <button className={tab === 'router' ? 'tab active' : 'tab'} onClick={() => setTab('router')}>공유기</button>
-        <button className={tab === 'favorites' ? 'tab active' : 'tab'} onClick={() => setTab('favorites')}>선택한 상품</button>
+      <div className="saved-workflow-tabs" aria-label="저장 데이터 보기 필터">
+        {viewOptions.map(([key, label, count, description]) => (
+          <button
+            key={key}
+            className={view === key ? 'workflow-tab active' : 'workflow-tab'}
+            onClick={() => setView(key)}
+          >
+            <span>{label}</span>
+            <strong>{count}</strong>
+            <small>{description}</small>
+          </button>
+        ))}
       </div>
 
-      <div className="toolbar">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="itemId 또는 상품명 검색" />
-        <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-          <option value="all">전체</option>
-          <option value="ad">광고만</option>
-          <option value="normal">광고 제외</option>
-        </select>
-        {tab === 'favorites' && (
+      <div className="saved-control-bar">
+        <label>
+          검색
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="itemId 또는 상품명 검색" />
+        </label>
+        <label>
+          정렬
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
             <option value="ranking">순위순</option>
-            <option value="custom">내가 정한 순서</option>
+            {view === 'favorites' && <option value="custom">내가 정한 순서</option>}
           </select>
-        )}
+        </label>
+        <div className="saved-control-summary">
+          <strong>{filteredCurrentProducts.length.toLocaleString()}개</strong>
+          <span>{activeViewLabel} · {sortMode === 'custom' ? '내가 정한 순서' : '순위순'}</span>
+        </div>
       </div>
 
       <SavedDataTable
-        title={tab === 'favorites' ? '선택한 상품 전체' : '전체 순위'}
+        title={activeViewLabel}
         products={filteredCurrentProducts}
       />
 
       <CompanySections
-        productsByCompany={tab === 'favorites' ? favoriteProductsByCompany : productsByCompany}
+        productsByCompany={view === 'favorites' ? favoriteProductsByCompany : productsByCompany}
         search={search}
-        filter={filter}
+        filter={activeFilter}
         sortMode={sortMode}
         displayOrderMap={displayOrderMap}
       />
@@ -304,6 +333,11 @@ function ProductManagementPage() {
 
   const allProducts = productsApi.data?.allProducts || [];
   const selectedIds = useMemo(() => new Set(selectedProducts.map((product) => product.id)), [selectedProducts]);
+  const selectedOrderMap = useMemo(() => {
+    const orderMap = new Map();
+    selectedProducts.forEach((product, index) => orderMap.set(product.id, index + 1));
+    return orderMap;
+  }, [selectedProducts]);
   const savedOrderIds = useMemo(() => (favoritesApi.data?.products || []).map((product) => product.id), [favoritesApi.data]);
   const selectedOrderIds = useMemo(() => selectedProducts.map((product) => product.id), [selectedProducts]);
   const isDirty = !sameIds(savedOrderIds, selectedOrderIds);
@@ -351,14 +385,14 @@ function ProductManagementPage() {
     updateSelectedProducts((current) => reorderProducts(current, fromIndex, toIndex), true);
   };
 
-  const moveSelectedById = (draggedId, targetId) => {
+  const moveSelectedById = (draggedId, targetId, animate = false) => {
     if (!draggedId || draggedId === targetId) return;
     setMessage('');
     updateSelectedProducts((current) => {
       const fromIndex = current.findIndex((item) => item.id === draggedId);
       const toIndex = current.findIndex((item) => item.id === targetId);
       return reorderProducts(current, fromIndex, toIndex);
-    }, true);
+    }, animate);
   };
 
   const removeSelected = (productId) => {
@@ -426,7 +460,12 @@ function ProductManagementPage() {
               <option value="unselected">미선택</option>
             </select>
           </div>
-          <ProductCatalogTable products={visibleProducts} selectedIds={selectedIds} onToggle={toggleProduct} />
+          <ProductCatalogTable
+            products={visibleProducts}
+            selectedIds={selectedIds}
+            selectedOrderMap={selectedOrderMap}
+            onToggle={toggleProduct}
+          />
         </section>
 
         <section className="selected-panel">
@@ -439,6 +478,7 @@ function ProductManagementPage() {
           </div>
           <SelectedOrderList
             products={selectedProducts}
+            search={search}
             draggingId={draggingId}
             setDraggingId={setDraggingId}
             dragOverId={dragOverId}
@@ -453,7 +493,7 @@ function ProductManagementPage() {
   );
 }
 
-function ProductCatalogTable({ products, selectedIds, onToggle }) {
+function ProductCatalogTable({ products, selectedIds, selectedOrderMap, onToggle }) {
   if (products.length === 0) return <div className="empty-state">조건에 맞는 상품이 없습니다.</div>;
   return (
     <div className="table-wrap catalog-table-wrap">
@@ -470,9 +510,19 @@ function ProductCatalogTable({ products, selectedIds, onToggle }) {
         <tbody>
           {products.map((product) => {
             const selected = selectedIds.has(product.id);
+            const selectedOrder = selectedOrderMap.get(product.id);
             return (
               <tr key={product.id} className={selected ? 'selected-row' : ''}>
-                <td className="center">{selected ? <span className="status-pill selected">선택됨</span> : <span className="status-pill">미선택</span>}</td>
+                <td className="center">
+                  {selected
+                    ? (
+                      <span className="status-pill selected">
+                        선택됨
+                        <small>{selectedOrder}번째</small>
+                      </span>
+                    )
+                    : <span className="status-pill">미선택</span>}
+                </td>
                 <td className="mono">{product.itemId}</td>
                 <td>{product.productName}</td>
                 <td>{COMPANY_LABELS[product.company] || product.company || ''}</td>
@@ -488,56 +538,131 @@ function ProductCatalogTable({ products, selectedIds, onToggle }) {
   );
 }
 
-function SelectedOrderList({ products, draggingId, setDraggingId, dragOverId, setDragOverId, onMove, onMoveById, onRemove }) {
+function SelectedOrderList({ products, search, draggingId, setDraggingId, dragOverId, setDragOverId, onMove, onMoveById, onRemove }) {
+  const listRef = useRef(null);
+  const autoScrollFrameRef = useRef(null);
+  const autoScrollVelocityRef = useRef(0);
+
+  const stopAutoScroll = () => {
+    autoScrollVelocityRef.current = 0;
+    if (autoScrollFrameRef.current) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  };
+
+  const runAutoScroll = () => {
+    const list = listRef.current;
+    const velocity = autoScrollVelocityRef.current;
+    if (!list || velocity === 0) {
+      autoScrollFrameRef.current = null;
+      return;
+    }
+
+    list.scrollTop += velocity;
+    autoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll);
+  };
+
+  const updateAutoScroll = (event) => {
+    const list = listRef.current;
+    if (!list) return;
+
+    const rect = list.getBoundingClientRect();
+    const edgeSize = Math.min(96, rect.height / 3);
+    const maxSpeed = 18;
+    let nextVelocity = 0;
+
+    if (event.clientY < rect.top + edgeSize) {
+      nextVelocity = -maxSpeed * ((rect.top + edgeSize - event.clientY) / edgeSize);
+    } else if (event.clientY > rect.bottom - edgeSize) {
+      nextVelocity = maxSpeed * ((event.clientY - (rect.bottom - edgeSize)) / edgeSize);
+    }
+
+    autoScrollVelocityRef.current = nextVelocity;
+    if (nextVelocity !== 0 && !autoScrollFrameRef.current) {
+      autoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll);
+    }
+    if (nextVelocity === 0) {
+      stopAutoScroll();
+    }
+  };
+
   if (products.length === 0) {
     return <div className="empty-state">왼쪽 목록에서 관심상품을 추가하면 여기에 순서대로 표시됩니다.</div>;
   }
 
   return (
-    <div className={draggingId ? 'order-list selected-order-list drag-active' : 'order-list selected-order-list'}>
-      {products.map((product, index) => (
-        <div
-          key={product.id}
-          className={orderItemClass(product.id, draggingId, dragOverId)}
-          style={{ viewTransitionName: `favorite-order-${product.id}` }}
-          draggable
-          onDragStart={(event) => {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', String(product.id));
-            setDraggingId(product.id);
-          }}
-          onDragEnter={() => {
-            if (draggingId && draggingId !== product.id) {
-              setDragOverId(product.id);
-              onMoveById(draggingId, product.id);
-            }
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'move';
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragOverId(null);
-            setDraggingId(null);
-          }}
-          onDragEnd={() => {
-            setDragOverId(null);
-            setDraggingId(null);
-          }}
-        >
-          <span className="order-number">{index + 1}</span>
-          <div className="order-info">
-            <strong>{product.productName}</strong>
-            <span>{product.itemId} · {COMPANY_LABELS[product.company] || product.company || '-'}</span>
+    <div
+      ref={listRef}
+      className={draggingId ? 'order-list selected-order-list drag-active' : 'order-list selected-order-list'}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        updateAutoScroll(event);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragOverId(null);
+        setDraggingId(null);
+        stopAutoScroll();
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          stopAutoScroll();
+        }
+      }}
+    >
+      {products.map((product, index) => {
+        const searchMatched = Boolean(normalize(search)) && productMatchesSearch(product, search);
+        return (
+          <div
+            key={product.id}
+            className={orderItemClass(product.id, draggingId, dragOverId, searchMatched)}
+            style={{ viewTransitionName: `favorite-order-${product.id}` }}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', String(product.id));
+              setDraggingId(product.id);
+            }}
+            onDragEnter={() => {
+              if (draggingId && draggingId !== product.id) {
+                setDragOverId(product.id);
+                onMoveById(draggingId, product.id);
+              }
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragOverId(null);
+              setDraggingId(null);
+              stopAutoScroll();
+            }}
+            onDragEnd={() => {
+              setDragOverId(null);
+              setDraggingId(null);
+              stopAutoScroll();
+            }}
+          >
+            <span className="order-number">{index + 1}</span>
+            <div className="order-info">
+              <strong>
+                <span>{product.productName}</span>
+                {searchMatched && <span className="search-match-badge">검색 일치</span>}
+              </strong>
+              <span>{product.itemId} · {COMPANY_LABELS[product.company] || product.company || '-'}</span>
+            </div>
+            <div className="order-actions">
+              <button onClick={() => onMove(index, index - 1)} disabled={index === 0}>위</button>
+              <button onClick={() => onMove(index, index + 1)} disabled={index === products.length - 1}>아래</button>
+              <button onClick={() => onRemove(product.id)}>제거</button>
+            </div>
           </div>
-          <div className="order-actions">
-            <button onClick={() => onMove(index, index - 1)} disabled={index === 0}>위</button>
-            <button onClick={() => onMove(index, index + 1)} disabled={index === products.length - 1}>아래</button>
-            <button onClick={() => onRemove(product.id)}>제거</button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -603,7 +728,8 @@ function SavedDataTable({ title, products }) {
   return (
     <DataBlock
       title={`${title} (${products.length}개)`}
-      actions={<CopyButton tableId={`saved-${slug(title)}`} />}
+      actions={<SavedDataCopyButton products={products} />}
+      className="saved-data-block"
     >
       <SavedTable id={`saved-${slug(title)}`} products={products} />
     </DataBlock>
@@ -647,7 +773,10 @@ function SavedTable({ id, products }) {
           <tr key={`${product.id}-${index}`} className={isAd(product) ? 'ad-row' : ''}>
             <td className="mono">{product.itemId}</td>
             <td>
-              {product.productUrl ? <a href={product.productUrl} target="_blank" rel="noreferrer">{product.productName}</a> : product.productName}
+              <div className="saved-product-name">
+                {product.productUrl ? <a href={product.productUrl} target="_blank" rel="noreferrer">{product.productName}</a> : product.productName}
+                {isAd(product) && <span className="ad-inline-badge">광고</span>}
+              </div>
             </td>
             <td className="center">{product.ranking ?? ''}</td>
             <td className="right">{product.currentPrice || ''}</td>
@@ -685,19 +814,41 @@ function StatsCards({ stats }) {
   );
 }
 
+function SavedDataCopyButton({ products }) {
+  const [status, setStatus] = useState('');
+  const copy = async () => {
+    try {
+      await copyText(buildSavedDataTsv(products));
+      setStatus('복사됨');
+    } catch (error) {
+      setStatus('복사 실패');
+    }
+    window.setTimeout(() => setStatus(''), 1200);
+  };
+  return (
+    <button className="ghost-button" onClick={copy} disabled={products.length === 0}>
+      {status || '엑셀용 복사'}
+    </button>
+  );
+}
+
 function CopyButton({ tableId }) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState('');
   const copy = async () => {
     const table = document.getElementById(tableId);
     if (!table) return;
     const text = [...table.querySelectorAll('tr')]
       .map((row) => [...row.children].map((cell) => cell.innerText.trim()).join('\t'))
       .join('\n');
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
+    try {
+      await copyText(text);
+      setStatus('복사됨');
+    } catch (error) {
+      setStatus('복사 실패');
+    }
+    window.setTimeout(() => setStatus(''), 1200);
   };
-  return <button className="ghost-button" onClick={copy}>{copied ? '복사됨' : '표 복사'}</button>;
+  return <button className="ghost-button" onClick={copy}>{status || '표 복사'}</button>;
 }
 
 function Loading() {
@@ -745,9 +896,13 @@ async function saveFavoriteIds(productIds) {
 }
 
 function filterProducts(products, search) {
+  return products.filter((product) => productMatchesSearch(product, search));
+}
+
+function productMatchesSearch(product, search) {
   const keyword = normalize(search);
-  if (!keyword) return products;
-  return products.filter((product) => normalize(`${product.itemId || ''} ${product.productName || ''}`).includes(keyword));
+  if (!keyword) return true;
+  return normalize(`${product.itemId || ''} ${product.productName || ''}`).includes(keyword);
 }
 
 function reorderProducts(products, fromIndex, toIndex) {
@@ -758,11 +913,12 @@ function reorderProducts(products, fromIndex, toIndex) {
   return next;
 }
 
-function orderItemClass(productId, draggingId, dragOverId) {
+function orderItemClass(productId, draggingId, dragOverId, searchMatched = false) {
   return [
     'order-item',
     draggingId === productId ? 'dragging' : '',
-    dragOverId === productId ? 'drag-over' : ''
+    dragOverId === productId ? 'drag-over' : '',
+    searchMatched ? 'search-matched' : ''
   ].filter(Boolean).join(' ');
 }
 
@@ -781,6 +937,51 @@ function applySavedFilters(products, search, filter, sortMode, displayOrderMap) 
     }
     return (a.ranking || 999999) - (b.ranking || 999999);
   });
+}
+
+function buildSavedDataTsv(products, { includeHeaders = true } = {}) {
+  const headers = ['itemId', '상품명', '순위', '가격', '리뷰', '배송'];
+  const rows = products.map((product) => [
+    product.itemId || '',
+    product.productName || '',
+    product.ranking ?? '',
+    product.currentPrice || '',
+    product.reviewCount || '',
+    deliveryLabel(product.deliveryMethod)
+  ]);
+  const outputRows = includeHeaders ? [headers, ...rows] : rows;
+  return outputRows
+    .map((row) => row.map(formatTsvCell).join('\t'))
+    .join('\n');
+}
+
+function formatTsvCell(value) {
+  return String(value ?? '').replace(/[\t\r\n]+/g, ' ').trim();
+}
+
+async function copyText(text) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.top = '0';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  try {
+    if (!document.execCommand('copy')) {
+      throw new Error('copy command failed');
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function normalize(value) {

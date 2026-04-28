@@ -292,18 +292,28 @@ public class HtmlParserService {
                 builder.rocketDelivery(rocketBadge != null ? "Y" : "N");
 
                 // 판매방법 판별
-                // 기존 로켓 배송 이미지
+                // 1. 기존 로켓 배송 이미지 (src 기반)
                 Element rocketMerchantImg = deliveryDateElement.selectFirst("img[src*=logoRocketMerchantLargeV3R3]");
                 Element rocketDeliveryImg = deliveryDateElement.selectFirst("img[src*=logo_rocket_large]");
 
-                // 새로운 배지 이미지 (badge_ext)
+                // 2. 배지 이미지 (badge_ext, src 기반)
                 Element rocketDeliveryBadge = deliveryDateElement.selectFirst("img[src*=badge_1998ab96bf7]");
                 Element rocketMerchantBadge = deliveryDateElement.selectFirst("img[src*=badge_199559e56f7]");
 
-                if (rocketMerchantImg != null || rocketMerchantBadge != null) {
+                // 3. 새로운 배지 형식 (data-badge-id 기반)
+                Element rocketBadgeById = deliveryDateElement.selectFirst("img[data-badge-id=ROCKET]");
+                Element rocketMerchantBadgeById = deliveryDateElement.selectFirst("img[data-badge-id=ROCKET_MERCHANT]");
+
+                // 4. 새로운 배지 형식 (src 파일명 기반)
+                Element rocketFilterImg = deliveryDateElement.selectFirst("img[src*=logo_rocket_filter_medium]");
+                Element rocketMerchantMediumImg = deliveryDateElement.selectFirst("img[src*=logo_rocket_merchant_medium]");
+
+                if (rocketMerchantImg != null || rocketMerchantBadge != null ||
+                    rocketMerchantBadgeById != null || rocketMerchantMediumImg != null) {
                     deliveryMethod = DeliveryMethod.ROCKET_MERCHANT;
                     log.debug("판매방법: 판매자로켓");
-                } else if (rocketDeliveryImg != null || rocketDeliveryBadge != null) {
+                } else if (rocketDeliveryImg != null || rocketDeliveryBadge != null ||
+                           rocketBadgeById != null || rocketFilterImg != null) {
                     deliveryMethod = DeliveryMethod.ROCKET_DELIVERY;
                     log.debug("판매방법: 로켓배송");
                 } else {
@@ -332,10 +342,17 @@ public class HtmlParserService {
                 builder.rating(starElement.attr("style").replaceAll(".*width:(\\d+)%.*", "$1") + "%");
             }
 
-            // 리뷰 수
+            // 리뷰 수 - 여러 셀렉터 시도 (HTML 구조 변경 대응)
             Element reviewCountElement = ratingElement.selectFirst("span.ProductRating_ratingCount__R0Vhz");
+            if (reviewCountElement == null) {
+                // 새로운 형식: <span class="fw-inline-block fw-translate-y-[1px] fw-text-[#212B36]">(<!-- -->1,472<!-- -->)</span>
+                reviewCountElement = ratingElement.selectFirst("span.fw-inline-block");
+            }
             if (reviewCountElement != null) {
-                builder.reviewCount(reviewCountElement.text());
+                String reviewText = reviewCountElement.text().trim();
+                // 괄호 제거 처리 (예: "(1,472)" -> "1,472")
+                reviewText = reviewText.replaceAll("[()]", "").trim();
+                builder.reviewCount(reviewText);
             }
         }
 

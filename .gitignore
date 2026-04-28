@@ -37,3 +37,13 @@ out/
 .vscode/
 
 application.yml
+
+### Frontend ###
+FE/node_modules/
+FE/dist/
+src/main/resources/static/
+
+### Secrets / local ###
+*.pem
+.DS_Store
+.omc/

@@ -312,6 +312,138 @@ textarea {
   width: min(420px, 100%);
 }
 
+.saved-data-page {
+  display: grid;
+  gap: 12px;
+}
+
+.saved-data-page .stats-grid {
+  margin-bottom: 4px;
+}
+
+.saved-data-page .saved-workflow-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.saved-data-page .workflow-tab {
+  min-height: 74px;
+  padding: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+}
+
+.saved-data-page .workflow-tab span {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.saved-data-page .workflow-tab strong {
+  font-size: 1.18rem;
+  color: #2563eb;
+}
+
+.saved-data-page .workflow-tab small {
+  color: #64748b;
+}
+
+.saved-data-page .workflow-tab.active,
+.saved-data-page .workflow-tab:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  box-shadow: inset 0 0 0 1px #bfdbfe;
+}
+
+.saved-data-page .saved-control-bar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(150px, 220px) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.saved-data-page .saved-control-bar label {
+  display: grid;
+  gap: 4px;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.saved-data-page .saved-control-bar input,
+.saved-data-page .saved-control-bar select {
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #0f172a;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+.saved-data-page .saved-control-summary {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.saved-data-page .saved-control-summary span {
+  color: #cbd5e1;
+}
+
+.saved-data-page .saved-data-block {
+  margin-top: 0;
+}
+
+.saved-data-page .saved-data-block th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.saved-data-page .saved-product-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.saved-data-page .ad-inline-badge {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.saved-data-page .ad-row {
+  background: #fff7ed;
+}
+
+.saved-data-page .right,
+.saved-data-page .center,
+.saved-data-page .mono {
+  white-space: nowrap;
+}
+
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -510,8 +642,14 @@ tbody tr:hover {
   box-shadow: inset 3px 0 0 #2563eb;
 }
 
+.order-item.search-matched {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  box-shadow: inset 4px 0 0 #f59e0b, 0 6px 14px rgba(245, 158, 11, 0.12);
+}
+
 .selected-order-list.drag-active .order-item:not(.dragging) {
-  transition: transform 180ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
 .order-number {
@@ -532,9 +670,26 @@ tbody tr:hover {
 }
 
 .order-info strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.order-info strong > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.order-info .search-match-badge {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 900;
 }
 
 .order-info span {
@@ -581,6 +736,15 @@ tbody tr:hover {
 
   .order-actions {
     grid-column: 2;
+  }
+
+  .saved-data-page .saved-workflow-tabs,
+  .saved-data-page .saved-control-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-data-page .saved-control-summary {
+    justify-content: space-between;
   }
 }
 
@@ -681,6 +845,16 @@ tbody tr:hover {
 .status-pill.selected {
   background: #dcfce7;
   color: #166534;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.05;
+}
+
+.status-pill small {
+  color: inherit;
+  font-size: 0.68rem;
+  font-weight: 900;
+  opacity: 0.9;
 }
 
 .selected-order-list {
@@ -689,6 +863,8 @@ tbody tr:hover {
   max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  scroll-behavior: auto;
   padding: 6px;
 }
 
@@ -749,7 +925,7 @@ td {
 
 .catalog-table th:nth-child(1),
 .catalog-table td:nth-child(1) {
-  width: 58px;
+  width: 70px;
 }
 
 .catalog-table th:nth-child(2),
